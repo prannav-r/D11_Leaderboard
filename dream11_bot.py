@@ -1,67 +1,138 @@
 import discord
-from discord.ext import commands
-import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import csv
 from dotenv import load_dotenv
 import os
-from typing import Dict, Optional
-import asyncio
-from config import Config
+import logging
+from collections import defaultdict
 from database import (
-    init_db, update_points, clear_points, undo_last_point,
-    get_leaderboard, get_match_results, DatabaseError
+    init_db, get_points, update_points, clear_points,
+    undo_last_point, get_leaderboard, get_match_results,
+    backup_database, DatabaseError
 )
+from config import Config
+
+# Set up logging
+logging.basicConfig(
+    level=getattr(logging, Config.LOG_LEVEL),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-# Initialize bot with command prefix and intents
+# Initialize client
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+client = discord.Client(intents=intents)
 
-# Command cooldown decorator
-def admin_command():
-    """Decorator for admin-only commands"""
-    async def predicate(ctx):
-        if ctx.author.id not in Config.ADMIN_USER_IDS:
-            await ctx.send("❌ This command is restricted to administrators only.")
+# Initialize database
+init_db()
+
+# Rate limiting
+command_counts = defaultdict(lambda: {"count": 0, "reset_time": datetime.now()})
+command_cooldowns = {}
+
+def check_rate_limit(user_id: int) -> bool:
+    """Check if user has exceeded rate limit"""
+    now = datetime.now()
+    user_data = command_counts[user_id]
+    
+    # Reset count if time has passed
+    if now > user_data["reset_time"]:
+        user_data["count"] = 0
+        user_data["reset_time"] = now + timedelta(minutes=1)
+    
+    # Check if user has exceeded limit
+    if user_data["count"] >= Config.MAX_COMMANDS_PER_MINUTE:
+        return False
+    
+    user_data["count"] += 1
+    return True
+
+def check_cooldown(user_id: int, command: str) -> bool:
+    """Check if command is on cooldown for user"""
+    now = datetime.now()
+    cooldown_key = f"{user_id}_{command}"
+    
+    if cooldown_key in command_cooldowns:
+        if now < command_cooldowns[cooldown_key]:
             return False
-        return True
-    return commands.check(predicate)
+    
+    command_cooldowns[cooldown_key] = now + timedelta(seconds=Config.COMMAND_COOLDOWN)
+    return True
 
-# Error handler
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, DatabaseError):
-        await ctx.send(f"❌ Database error: {str(error)}")
-    elif isinstance(error, ValueError):
-        await ctx.send(f"❌ {str(error)}")
-    else:
-        await ctx.send(f"❌ An error occurred: {str(error)}")
+def is_admin(user):
+    """Check if the user is an admin"""
+    return user.id in Config.ADMIN_USER_IDS
+
+def validate_username(username: str) -> bool:
+    """Validate username format"""
+    return bool(username and len(username) <= 32 and username.isalnum())
+
+def display_dream11_leaderboard():
+    """Display Dream11 leaderboard and match winners log"""
+    try:
+        points = get_points()
+        if not points:
+            return "No points recorded yet!"
+        
+        # Sort users by points
+        sorted_users = sorted(points.items(), key=lambda x: x[1], reverse=True)
+        
+        # Create leaderboard message
+        leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
+        for rank, (user, points) in enumerate(sorted_users, 1):
+            leaderboard += f"{rank}. {user}: {points} point(s)\n"
+        
+        # Add match winners log
+        match_results = get_match_results()
+        if match_results:
+            leaderboard += "\n\n🏆 Dream11 Contest Match Winners Log 🏆\n\n"
+            leaderboard += "Match #" + " " * 5 + "Match Details" + " " * 20 + "Winner\n"
+            leaderboard += "-" * 70 + "\n"
+            
+            # Sort results by match number
+            sorted_results = sorted(match_results, key=lambda x: x[0])
+            
+            for match_no, winner, timestamp in sorted_results:
+                schedule_info = IPL_2025_SCHEDULE.get(match_no, {})
+                
+                # Format match details with acronyms
+                if schedule_info:
+                    home_team = schedule_info['home'].strip()
+                    away_team = schedule_info['away'].strip()
+                    home_acronym = TEAM_ACRONYMS.get(home_team, home_team)
+                    away_acronym = TEAM_ACRONYMS.get(away_team, away_team)
+                    match_details = f"{home_acronym} vs {away_acronym}"
+                else:
+                    match_details = "Unknown Match"
+                
+                # Format the log line
+                leaderboard += f"Match {match_no:<5} {match_details:<30} {winner:<15}\n"
+        
+        return leaderboard
+    except Exception as e:
+        logger.error(f"Error displaying leaderboard: {str(e)}")
+        return "❌ Error displaying leaderboard. Please try again later."
 
 # Load IPL 2025 Schedule
-def load_schedule() -> Dict:
+def load_schedule():
     schedule = {}
-    try:
-        with open('IPL_2025_SEASON_SCHEDULE.csv', 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                match_no = int(row['Match No'])
-                schedule[match_no] = {
-                    'date': datetime.strptime(row['Date'], '%Y-%m-%d'),
-                    'day': row['Day'],
-                    'start': row['Start'],
-                    'home': row['Home'],
-                    'away': row['Away'],
-                    'venue': row['Venue']
-                }
-    except FileNotFoundError:
-        print("Warning: IPL schedule file not found")
-    except Exception as e:
-        print(f"Error loading schedule: {str(e)}")
+    with open('IPL_2025_SEASON_SCHEDULE.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            match_no = int(row['Match No'])
+            schedule[match_no] = {
+                'date': datetime.strptime(row['Date'], '%Y-%m-%d'),
+                'day': row['Day'],
+                'start': row['Start'],
+                'home': row['Home'],
+                'away': row['Away'],
+                'venue': row['Venue']
+            }
     return schedule
 
 # Load schedule at startup
@@ -81,102 +152,264 @@ TEAM_ACRONYMS = {
     "Punjab Kings": "PBKS"
 }
 
-@bot.event
+@client.event
 async def on_ready():
-    print(f"Dream11 Bot has logged in as {bot.user}")
-    init_db()
-
-@bot.command(name='win')
-@admin_command()
-async def record_win(ctx, username: str, match_number: int):
-    """Record a match win for a user"""
+    logger.info(f"Dream11 Bot has logged in as {client.user}")
+    # Create initial backup
     try:
-        update_points(username, 10, match_number, str(ctx.author))
-        await ctx.send(f"✅ Recorded win for {username} in match {match_number}")
-    except ValueError as e:
-        await ctx.send(f"❌ {str(e)}")
+        backup_database()
+    except Exception as e:
+        logger.error(f"Failed to create initial backup: {str(e)}")
 
-@bot.command(name='points')
-@admin_command()
-async def update_user_points(ctx, username: str, points: int):
-    """Update points for a user"""
-    try:
-        update_points(username, points, recorded_by=str(ctx.author))
-        await ctx.send(f"✅ Updated points for {username}: {points:+d}")
-    except ValueError as e:
-        await ctx.send(f"❌ {str(e)}")
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
 
-@bot.command(name='leaderboard')
-async def show_leaderboard(ctx):
-    """Display the current leaderboard"""
-    try:
-        points_data = get_leaderboard()
-        if not points_data:
-            await ctx.send("No points recorded yet!")
-            return
-
-        leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
-        for rank, (user, points) in enumerate(points_data, 1):
-            leaderboard += f"{rank}. {user}: {points} point(s)\n"
-
-        match_results = get_match_results()
-        if match_results:
-            leaderboard += "\n\n🏆 Dream11 Contest Match Winners Log 🏆\n\n"
-            leaderboard += "Match #" + " " * 5 + "Match Details" + " " * 20 + "Winner\n"
-            leaderboard += "-" * 70 + "\n"
-
-            for match_no, winner, _ in match_results:
-                schedule_info = IPL_2025_SCHEDULE.get(match_no, {})
-                if schedule_info:
-                    home_team = schedule_info['home'].strip()
-                    away_team = schedule_info['away'].strip()
-                    home_acronym = TEAM_ACRONYMS.get(home_team, home_team)
-                    away_acronym = TEAM_ACRONYMS.get(away_team, away_team)
-                    match_details = f"{home_acronym} vs {away_acronym}"
-                else:
-                    match_details = "Unknown Match"
-
-                leaderboard += f"Match {match_no:<5} {match_details:<30} {winner:<15}\n"
-
-        await ctx.send(leaderboard)
-    except DatabaseError as e:
-        await ctx.send(f"❌ {str(e)}")
-
-@bot.command(name='undo')
-@admin_command()
-async def undo_points(ctx):
-    """Undo the last point change"""
-    try:
-        success, message = undo_last_point()
-        await ctx.send(message)
-    except DatabaseError as e:
-        await ctx.send(f"❌ {str(e)}")
-
-@bot.command(name='clear')
-@admin_command()
-async def clear_all_points(ctx):
-    """Clear all points and match results"""
-    try:
-        clear_points()
-        await ctx.send("✅ All points and match results have been cleared successfully.")
-    except DatabaseError as e:
-        await ctx.send(f"❌ {str(e)}")
-
-def main():
-    """Main entry point with configuration validation"""
-    errors = Config.validate()
-    if errors:
-        print("Configuration errors:")
-        for key, error in errors.items():
-            print(f"- {key}: {error}")
+    # Check rate limit
+    if not check_rate_limit(message.author.id):
+        await message.channel.send("⚠️ You're using commands too quickly. Please wait a moment.")
         return
 
     try:
-        bot.run(Config.DISCORD_TOKEN)
-    except discord.LoginFailure:
-        print("Failed to log in: Invalid token")
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        if message.content.startswith("!win"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "win"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
 
-if __name__ == "__main__":
-    main() 
+            # Extract username and match number from command
+            parts = message.content[len("!win "):].strip().split()
+            if len(parts) < 2:
+                await message.channel.send("❌ Please specify both username and match number: `!win <username> <match_number>`")
+                return
+                
+            username = parts[0]
+            if not validate_username(username):
+                await message.channel.send("❌ Invalid username format. Use only letters and numbers.")
+                return
+
+            try:
+                match_number = int(parts[1])
+                if match_number > Config.MAX_MATCH_NUMBER:
+                    await message.channel.send(f"❌ Match number cannot exceed {Config.MAX_MATCH_NUMBER}")
+                    return
+            except ValueError:
+                await message.channel.send("❌ Please provide a valid match number.")
+                return
+            
+            # Get current date
+            current_date = datetime.now().date()
+            
+            # Check if user is admin
+            if not is_admin(message.author):
+                # For regular users, check if match is scheduled for today
+                match_schedule = IPL_2025_SCHEDULE.get(match_number)
+                if not match_schedule or match_schedule['date'].date() != current_date:
+                    await message.channel.send("❌ You can only record points for matches scheduled for today. Admins can record points for any match.")
+                    return
+            
+            # Update points
+            update_points(username, 1, match_number, message.author.name)
+            await message.channel.send(f"✅ Added 1 point to {username} for winning Match {match_number}")
+            
+        elif message.content.startswith("!d11"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "d11"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            leaderboard = display_dream11_leaderboard()
+            await message.channel.send(leaderboard)
+
+        elif message.content.startswith("!undo"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "undo"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Check if user is admin
+            if not is_admin(message.author):
+                await message.channel.send("❌ This command is restricted to admin users only.")
+                return
+                
+            success, message_text = undo_last_point()
+            if success:
+                await message.channel.send(f"✅ {message_text}")
+            else:
+                await message.channel.send(f"❌ {message_text}")
+
+        elif message.content.startswith("!clearpoints"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "clearpoints"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Check if user is admin
+            if not is_admin(message.author):
+                await message.channel.send("❌ This command is restricted to admin users only.")
+                return
+
+            # Create backup before clearing
+            try:
+                backup_file = backup_database()
+                clear_points()
+                await message.channel.send(f"✅ All Dream11 points have been cleared successfully.\nBackup created: {backup_file}")
+            except Exception as e:
+                logger.error(f"Error clearing points: {str(e)}")
+                await message.channel.send("❌ Error clearing points. Please try again later.")
+
+        elif message.content.startswith("!adminlog"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "adminlog"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Check if user is admin
+            if not is_admin(message.author):
+                await message.channel.send("❌ This command is restricted to admin users only.")
+                return
+                
+            try:
+                match_results = get_match_results()
+                if not match_results:
+                    await message.channel.send("No match results recorded yet!")
+                else:
+                    output = "Match Results Log:\n\n"
+                    for match_no, winner, timestamp in match_results:
+                        output += f"Match: {match_no}\n"
+                        output += f"Winner: {winner}\n"
+                        output += f"Timestamp: {timestamp}\n"
+                        output += "-" * 30 + "\n"
+                    await message.channel.send(output)
+            except Exception as e:
+                logger.error(f"Error reading match results: {str(e)}")
+                await message.channel.send("❌ Error reading match results. Please try again later.")
+
+        elif message.content.startswith("!tdy"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "tdy"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Get current date
+            current_date = datetime.now().date()
+            
+            # Find matches scheduled for today
+            today_matches = []
+            for match_no, match_info in IPL_2025_SCHEDULE.items():
+                if match_info['date'].date() == current_date:
+                    # Get team acronyms
+                    home_team = match_info['home'].strip()
+                    away_team = match_info['away'].strip()
+                    home_acronym = TEAM_ACRONYMS.get(home_team, home_team)
+                    away_acronym = TEAM_ACRONYMS.get(away_team, away_team)
+                    
+                    today_matches.append({
+                        'match_no': match_no,
+                        'home': home_acronym,
+                        'away': away_acronym,
+                        'start': match_info['start']
+                    })
+            
+            if not today_matches:
+                await message.channel.send("No matches scheduled for today.")
+                return
+                
+            # Create output message
+            output = "🏏 Today's Matches 🏏\n\n"
+            output += "Match #" + " " * 5 + "Teams" + " " * 20 + "Start Time\n"
+            output += "-" * 50 + "\n"
+            
+            # Sort matches by match number
+            today_matches.sort(key=lambda x: x['match_no'])
+            
+            for match in today_matches:
+                output += f"Match {match['match_no']:<5} {match['home']} vs {match['away']:<15} {match['start']}\n"
+            
+            await message.channel.send(output)
+
+        elif message.content.startswith("!about"):
+            # Check command cooldown
+            if not check_cooldown(message.author.id, "about"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Create an embed message
+            embed = discord.Embed(
+                title="📋 Dream11 Bot Commands",
+                description="Here is the list of Dream11 commands you can use:",
+                color=discord.Color.blue()
+            )
+            
+            # Add fields for regular commands
+            embed.add_field(
+                name="Regular Commands",
+                value="These commands are available to all users:",
+                inline=False
+            )
+            embed.add_field(
+                name="1. `!win <username> <match_number>`",
+                value="Add 1 point to a user for winning a match",
+                inline=False
+            )
+            embed.add_field(
+                name="2. `!d11`",
+                value="Show Dream11 leaderboard and match winners log",
+                inline=False
+            )
+            embed.add_field(
+                name="3. `!tdy`",
+                value="Show today's scheduled matches",
+                inline=False
+            )
+            embed.add_field(
+                name="4. `!about`",
+                value="Show this help message",
+                inline=False
+            )
+            
+            # Add separator
+            embed.add_field(
+                name="\u200b",  # Zero-width space for visual separation
+                value="\u200b",
+                inline=False
+            )
+            
+            # Add fields for admin commands
+            embed.add_field(
+                name="Admin Commands",
+                value="These commands are restricted to admin users only:",
+                inline=False
+            )
+            embed.add_field(
+                name="1. `!undo`",
+                value="Undo last point change",
+                inline=False
+            )
+            embed.add_field(
+                name="2. `!clearpoints`",
+                value="Clear all points",
+                inline=False
+            )
+            embed.add_field(
+                name="3. `!adminlog`",
+                value="Show detailed match results log",
+                inline=False
+            )
+
+            # Footer with developer credit
+            embed.set_footer(text="Developed by Pr😉")
+
+            # Send the embed message
+            await message.channel.send(embed=embed)
+
+    except DatabaseError as e:
+        logger.error(f"Database error: {str(e)}")
+        await message.channel.send("❌ Database error occurred. Please try again later.")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        await message.channel.send("❌ An unexpected error occurred. Please try again later.")
+
+# Run the bot
+client.run(Config.DISCORD_TOKEN)
