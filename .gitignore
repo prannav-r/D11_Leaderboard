@@ -24,8 +24,9 @@ wheels/
 venv/
 env/
 ENV/
-*.env
-.env.example
+.env
+.env.*
+!.env.example
 
 # IDE
 .idea/
