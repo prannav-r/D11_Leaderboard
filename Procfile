@@ -1,0 +1,1 @@
+worker: python dream11_bot.py 
