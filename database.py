@@ -170,4 +170,41 @@ def get_match_results() -> List[Tuple[int, str, str, str]]:
         
     except Exception as e:
         logger.error(f"Error getting match results: {str(e)}")
-        raise DatabaseError(f"Failed to get match results: {str(e)}") 
+        raise DatabaseError(f"Failed to get match results: {str(e)}")
+
+def get_user_alert_preference(user_id: int) -> bool:
+    """Get user's alert preference"""
+    try:
+        response = supabase.table('user_alerts').select('enabled').eq('user_id', user_id).execute()
+        if not response.data:
+            return False
+        return response.data[0]['enabled']
+    except Exception as e:
+        logger.error(f"Error getting user alert preference: {str(e)}")
+        raise DatabaseError(f"Failed to get user alert preference: {str(e)}")
+
+def set_user_alert_preference(user_id: int, enabled: bool) -> None:
+    """Set user's alert preference"""
+    try:
+        # Try to update first
+        response = supabase.table('user_alerts').update({'enabled': enabled}).eq('user_id', user_id).execute()
+        
+        # If no rows were updated, insert new preference
+        if not response.data:
+            supabase.table('user_alerts').insert({
+                'user_id': user_id,
+                'enabled': enabled
+            }).execute()
+            
+    except Exception as e:
+        logger.error(f"Error setting user alert preference: {str(e)}")
+        raise DatabaseError(f"Failed to set user alert preference: {str(e)}")
+
+def get_users_with_alerts() -> List[int]:
+    """Get list of user IDs who have alerts enabled"""
+    try:
+        response = supabase.table('user_alerts').select('user_id').eq('enabled', True).execute()
+        return [row['user_id'] for row in response.data]
+    except Exception as e:
+        logger.error(f"Error getting users with alerts: {str(e)}")
+        raise DatabaseError(f"Failed to get users with alerts: {str(e)}") 

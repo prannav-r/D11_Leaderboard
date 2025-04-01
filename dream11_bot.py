@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, List
 import re
 import csv
@@ -14,7 +14,10 @@ from database import (
     update_points,
     clear_points,
     undo_last_point,
-    get_match_results
+    get_match_results,
+    get_user_alert_preference,
+    set_user_alert_preference,
+    get_users_with_alerts
 )
 from utils import (
     setup_logging,
@@ -73,9 +76,70 @@ TEAM_ACRONYMS = {
     "Punjab Kings": "PBKS"
 }
 
+# Add alert checking task
+async def check_match_alerts():
+    """Check for upcoming matches and send alerts"""
+    while True:
+        try:
+            # Get current time
+            current_time = datetime.now(timezone.utc)
+            
+            # Get users with alerts enabled
+            users_with_alerts = get_users_with_alerts()
+            if not users_with_alerts:
+                await asyncio.sleep(60)  # Check every minute if no alerts
+                continue
+            
+            # Check each match in the schedule
+            for match_no, match_info in IPL_2025_SCHEDULE.items():
+                # Parse match start time
+                try:
+                    match_date = match_info['date']
+                    start_time = datetime.strptime(match_info['start'], '%H:%M').time()
+                    match_datetime = datetime.combine(match_date, start_time)
+                    match_datetime = match_datetime.replace(tzinfo=timezone.utc)
+                    
+                    # Calculate alert time (30 minutes before match)
+                    alert_time = match_datetime - timedelta(minutes=30)
+                    
+                    # Check if it's time to send alert
+                    if current_time >= alert_time and current_time < match_datetime:
+                        # Get team acronyms
+                        home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                        away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                        
+                        # Create alert message
+                        alert_message = (
+                            f"🔔 Match Alert!\n"
+                            f"Match {match_no}: {home_team} vs {away_team}\n"
+                            f"Starting in 30 minutes!"
+                        )
+                        
+                        # Send alert to each user
+                        for user_id in users_with_alerts:
+                            try:
+                                user = await client.fetch_user(user_id)
+                                if user:
+                                    await user.send(alert_message)
+                            except Exception as e:
+                                logger.error(f"Error sending alert to user {user_id}: {str(e)}")
+                                
+                except Exception as e:
+                    logger.error(f"Error processing match {match_no}: {str(e)}")
+                    continue
+            
+            # Sleep for 1 minute before next check
+            await asyncio.sleep(60)
+            
+        except Exception as e:
+            logger.error(f"Error in alert checking task: {str(e)}")
+            await asyncio.sleep(60)  # Wait a minute before retrying
+
 @client.event
 async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
+    # Start the alert checking task
+    client.loop.create_task(check_match_alerts())
 
 @client.event
 async def on_message(message):
@@ -200,12 +264,6 @@ async def on_message(message):
                             # Format the line with proper spacing
                             match_log += f"Match {match_no:<5} {match_details:<30} {format_username(winner)}\n"
                         
-                        # Add page number if there are multiple chunks
-                        if len(sorted_matches) > chunk_size:
-                            current_page = (i // chunk_size) + 1
-                            total_pages = (len(sorted_matches) + chunk_size - 1) // chunk_size
-                            match_log += f"\nPage {current_page} of {total_pages}"
-                        
                         # Send the chunk
                         await message.channel.send(match_log)
                 
@@ -298,11 +356,6 @@ async def on_message(message):
                             output += f"Timestamp: {timestamp}\n"
                             output += "-" * 30 + "\n"
                         
-                        # Add page number if there are multiple chunks
-                        if len(sorted_matches) > chunk_size:
-                            current_page = (i // chunk_size) + 1
-                            total_pages = (len(sorted_matches) + chunk_size - 1) // chunk_size
-                            output += f"\nPage {current_page} of {total_pages}"
                         
                         # Send the chunk
                         await message.channel.send(output)
@@ -396,7 +449,12 @@ async def on_message(message):
                 inline=False
             )
             embed.add_field(
-                name="4. `!about`",
+                name="4. `!alert`",
+                value="Toggle match alerts (30 minutes before each match)",
+                inline=False
+            )
+            embed.add_field(
+                name="5. `!about`",
                 value="Show this help message",
                 inline=False
             )
@@ -435,6 +493,36 @@ async def on_message(message):
 
             # Send the embed message
             await message.channel.send(embed=embed)
+
+        elif message.content.startswith("!alert"):
+            # Check command cooldown
+            if not get_command_cooldown(message.author.id, "alert"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            try:
+                # Get current preference
+                current_preference = get_user_alert_preference(message.author.id)
+                
+                # Toggle the preference
+                new_preference = not current_preference
+                set_user_alert_preference(message.author.id, new_preference)
+                
+                # Send confirmation message
+                if new_preference:
+                    await message.channel.send(
+                        "✅ Match alerts enabled! You will receive a DM 30 minutes before each match starts.\n"
+                        "Use `!alert` again to disable alerts."
+                    )
+                else:
+                    await message.channel.send(
+                        "✅ Match alerts disabled! You will no longer receive match alerts.\n"
+                        "Use `!alert` again to enable alerts."
+                    )
+                    
+            except Exception as e:
+                logger.error(f"Error toggling alert preference: {str(e)}")
+                await message.channel.send("❌ Error updating alert preference. Please try again later.")
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
