@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, List
 import re
+import csv
 from config import Config
 from database import (
     init_db,
@@ -25,14 +26,7 @@ from utils import (
 )
 
 # Set up logging
-logging.basicConfig(
-    level=getattr(logging, Config.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
+logger = setup_logging()
 
 # Initialize client
 intents = discord.Intents.default()
@@ -42,93 +36,6 @@ client = discord.Client(intents=intents)
 
 # Initialize database
 init_db()
-
-# Rate limiting
-command_counts = defaultdict(lambda: {"count": 0, "reset_time": datetime.now()})
-command_cooldowns = {}
-
-def check_rate_limit(user_id: int) -> bool:
-    """Check if user has exceeded rate limit"""
-    now = datetime.now()
-    user_data = command_counts[user_id]
-    
-    # Reset count if time has passed
-    if now > user_data["reset_time"]:
-        user_data["count"] = 0
-        user_data["reset_time"] = now + timedelta(minutes=1)
-    
-    # Check if user has exceeded limit
-    if user_data["count"] >= Config.MAX_COMMANDS_PER_MINUTE:
-        return False
-    
-    user_data["count"] += 1
-    return True
-
-def check_cooldown(user_id: int, command: str) -> bool:
-    """Check if command is on cooldown for user"""
-    now = datetime.now()
-    cooldown_key = f"{user_id}_{command}"
-    
-    if cooldown_key in command_cooldowns:
-        if now < command_cooldowns[cooldown_key]:
-            return False
-    
-    command_cooldowns[cooldown_key] = now + timedelta(seconds=Config.COMMAND_COOLDOWN)
-    return True
-
-def is_admin(user):
-    """Check if the user is an admin"""
-    return user.id in Config.ADMIN_USER_IDS
-
-def validate_username(username: str) -> bool:
-    """Validate username format"""
-    return bool(username and len(username) <= 32 and username.isalnum())
-
-def display_dream11_leaderboard():
-    """Display Dream11 leaderboard and match winners log"""
-    try:
-        points = get_points()
-        if not points:
-            return "No points recorded yet!"
-        
-        # Sort users by points
-        sorted_users = sorted(points.items(), key=lambda x: x[1], reverse=True)
-        
-        # Create leaderboard message
-        leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
-        for rank, (user, points) in enumerate(sorted_users, 1):
-            leaderboard += f"{rank}. {user}: {points} point(s)\n"
-        
-        # Add match winners log
-        match_results = get_match_results()
-        if match_results:
-            leaderboard += "\n\n🏆 Dream11 Contest Match Winners Log 🏆\n\n"
-            leaderboard += "Match #" + " " * 5 + "Match Details" + " " * 20 + "Winner\n"
-            leaderboard += "-" * 70 + "\n"
-            
-            # Sort results by match number
-            sorted_results = sorted(match_results, key=lambda x: x[0])
-            
-            for match_no, winner, timestamp in sorted_results:
-                schedule_info = IPL_2025_SCHEDULE.get(match_no, {})
-                
-                # Format match details with acronyms
-                if schedule_info:
-                    home_team = schedule_info['home'].strip()
-                    away_team = schedule_info['away'].strip()
-                    home_acronym = TEAM_ACRONYMS.get(home_team, home_team)
-                    away_acronym = TEAM_ACRONYMS.get(away_team, away_team)
-                    match_details = f"{home_acronym} vs {away_acronym}"
-                else:
-                    match_details = "Unknown Match"
-                
-                # Format the log line
-                leaderboard += f"Match {match_no:<5} {match_details:<30} {winner:<15}\n"
-        
-        return leaderboard
-    except Exception as e:
-        logger.error(f"Error displaying leaderboard: {str(e)}")
-        return "❌ Error displaying leaderboard. Please try again later."
 
 # Load IPL 2025 Schedule
 def load_schedule():
@@ -181,7 +88,7 @@ async def on_message(message):
     try:
         if message.content.startswith("!win"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "win"):
+            if not get_command_cooldown(message.author.id, "win"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
@@ -192,17 +99,16 @@ async def on_message(message):
                 return
                 
             username = parts[0]
-            if not validate_username(username):
-                await message.channel.send("❌ Invalid username format. Use only letters and numbers.")
-                return
-
             try:
                 match_number = int(parts[1])
-                if match_number > Config.MAX_MATCH_NUMBER:
-                    await message.channel.send(f"❌ Match number cannot exceed {Config.MAX_MATCH_NUMBER}")
-                    return
             except ValueError:
                 await message.channel.send("❌ Please provide a valid match number.")
+                return
+
+            # Validate input
+            is_valid, error_message = validate_input(username, match_number)
+            if not is_valid:
+                await message.channel.send(f"❌ {error_message}")
                 return
             
             # Get current date
@@ -222,16 +128,17 @@ async def on_message(message):
             
         elif message.content.startswith("!d11"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "d11"):
+            if not get_command_cooldown(message.author.id, "d11"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
-            leaderboard = display_dream11_leaderboard()
+            points = get_points()
+            leaderboard = format_points(points)
             await message.channel.send(leaderboard)
 
         elif message.content.startswith("!undo"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "undo"):
+            if not get_command_cooldown(message.author.id, "undo"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
@@ -248,7 +155,7 @@ async def on_message(message):
 
         elif message.content.startswith("!clearpoints"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "clearpoints"):
+            if not get_command_cooldown(message.author.id, "clearpoints"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
@@ -257,18 +164,12 @@ async def on_message(message):
                 await message.channel.send("❌ This command is restricted to admin users only.")
                 return
 
-            # Create backup before clearing
-            try:
-                backup_file = backup_database()
-                clear_points()
-                await message.channel.send(f"✅ All Dream11 points have been cleared successfully.\nBackup created: {backup_file}")
-            except Exception as e:
-                logger.error(f"Error clearing points: {str(e)}")
-                await message.channel.send("❌ Error clearing points. Please try again later.")
+            clear_points()
+            await message.channel.send("✅ All Dream11 points have been cleared successfully.")
 
         elif message.content.startswith("!adminlog"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "adminlog"):
+            if not get_command_cooldown(message.author.id, "adminlog"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
@@ -295,7 +196,7 @@ async def on_message(message):
 
         elif message.content.startswith("!tdy"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "tdy"):
+            if not get_command_cooldown(message.author.id, "tdy"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
@@ -338,7 +239,7 @@ async def on_message(message):
 
         elif message.content.startswith("!about"):
             # Check command cooldown
-            if not check_cooldown(message.author.id, "about"):
+            if not get_command_cooldown(message.author.id, "about"):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
