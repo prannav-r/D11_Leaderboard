@@ -115,11 +115,18 @@ def undo_last_point() -> Tuple[bool, str]:
         logger.error(f"Error undoing last point: {str(e)}")
         raise DatabaseError(f"Failed to undo last point: {str(e)}")
 
-def get_match_results() -> List[Tuple[int, str, str]]:
-    """Get all match results"""
+def get_match_results() -> List[Tuple[int, str, str, str]]:
+    """Get all match results with admin who recorded them"""
     try:
-        response = supabase.table('match_results').select('*').order('match_number').execute()
-        return [(row['match_number'], row['winner'], row['timestamp']) for row in response.data]
+        # Join match_results with history to get the admin who recorded the win
+        response = supabase.table('match_results').select(
+            'match_number, winner, timestamp, history!inner(updated_by)'
+        ).order('match_number').execute()
+        
+        return [
+            (row['match_number'], row['winner'], row['timestamp'], row['history']['updated_by'])
+            for row in response.data
+        ]
     except Exception as e:
         logger.error(f"Error getting match results: {str(e)}")
         raise DatabaseError(f"Failed to get match results: {str(e)}") 

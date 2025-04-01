@@ -120,14 +120,30 @@ async def on_message(message):
             if not is_admin(message.author):
                 # For regular users, check if match is scheduled for today
                 match_schedule = IPL_2025_SCHEDULE.get(match_number)
-                if not match_schedule or match_schedule['date'].date() != current_date:
-                    await message.channel.send("❌ You can only record points for matches scheduled for today. Admins can record points for any match.")
+                if not match_schedule:
+                    await message.channel.send(f"❌ Match {match_number} not found in schedule.")
+                    return
+                
+                match_date = match_schedule['date'].date()
+                if match_date != current_date:
+                    # Format the match date for better readability
+                    formatted_date = match_schedule['date'].strftime('%B %d, %Y')
+                    await message.channel.send(
+                        f"❌ You can only record points for matches scheduled for today.\n"
+                        f"Match {match_number} is scheduled for {formatted_date}.\n"
+                        f"Only admins can record points for matches on other dates."
+                    )
+                    logger.info(f"User {message.author.name} attempted to record points for Match {match_number} scheduled for {formatted_date}")
                     return
             
             # Update points
             try:
                 update_points(username, 1, match_number, message.author.name)
-                await message.channel.send(f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}")
+                success_message = f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}"
+                if is_admin(message.author):
+                    success_message += " (Admin override)"
+                await message.channel.send(success_message)
+                logger.info(f"Points updated: Match {match_number} - Winner: {username} - Recorded by: {message.author.name}")
             except Exception as e:
                 logger.error(f"Error updating points: {str(e)}")
                 await message.channel.send("❌ Error updating points. Please try again later.")
@@ -138,9 +154,29 @@ async def on_message(message):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
-            points = get_points()
-            leaderboard = format_points(points)
-            await message.channel.send(leaderboard)
+            try:
+                # Get points and match results
+                points = get_points()
+                match_results = get_match_results()
+                
+                # Format leaderboard
+                leaderboard = format_points(points)
+                
+                # Add match results section
+                if match_results:
+                    leaderboard += "\n\n📊 Match Results Log:\n"
+                    leaderboard += "-" * 30 + "\n"
+                    for match_no, winner, timestamp, admin in match_results:
+                        leaderboard += f"Match: {match_no}\n"
+                        leaderboard += f"Winner: {format_username(winner)}\n"
+                        leaderboard += f"Recorded by: {admin}\n"
+                        leaderboard += f"Time: {timestamp}\n"
+                        leaderboard += "-" * 30 + "\n"
+                
+                await message.channel.send(leaderboard)
+            except Exception as e:
+                logger.error(f"Error displaying leaderboard: {str(e)}")
+                await message.channel.send("❌ Error displaying leaderboard. Please try again later.")
 
         elif message.content.startswith("!undo"):
             # Check command cooldown
@@ -189,10 +225,11 @@ async def on_message(message):
                 if not match_results:
                     await message.channel.send("No match results recorded yet!")
                 else:
-                    output = "Match Results Log:\n\n"
-                    for match_no, winner, timestamp in match_results:
+                    output = "📊 Detailed Match Results Log:\n\n"
+                    for match_no, winner, timestamp, admin in match_results:
                         output += f"Match: {match_no}\n"
                         output += f"Winner: {format_username(winner)}\n"
+                        output += f"Recorded by: {admin}\n"
                         output += f"Timestamp: {timestamp}\n"
                         output += "-" * 30 + "\n"
                     await message.channel.send(output)
