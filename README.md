@@ -1,21 +1,37 @@
 # Dream11 Leaderboard Bot
 
-A Discord bot for tracking Dream11 contest points and displaying leaderboards.
+A Discord bot for tracking Dream11 contest points and match results.
 
 ## Features
 
-- Track points for users
-- Display leaderboard
-- Record match winners
-- Undo last point change
-- Clear all points
-- Admin-only commands
+- Track points for Dream11 contest winners
+- View leaderboard and match results
+- Admin commands for managing points
+- Rate limiting and command cooldowns
+- Match schedule integration
 
-## Setup Instructions
+## Deployment on Railway
 
-### Local Development
+1. Fork this repository
+2. Create a new project on [Railway](https://railway.app/)
+3. Connect your GitHub repository
+4. Add the following environment variables in Railway:
+   ```
+   DISCORD_TOKEN=your_discord_bot_token
+   ADMIN_USER_IDS=123456789,987654321  # Comma-separated list of admin Discord user IDs
+   SUPABASE_URL=your_supabase_project_url
+   SUPABASE_KEY=your_supabase_anon_key
+   MAX_POINTS_PER_UPDATE=100
+   MAX_MATCH_NUMBER=74
+   COMMAND_COOLDOWN=5
+   MAX_COMMANDS_PER_MINUTE=30
+   DEBUG=false
+   LOG_LEVEL=INFO
+   ```
 
-1. Clone this repository
+## Local Development
+
+1. Clone the repository
 2. Create a virtual environment:
    ```bash
    python -m venv venv
@@ -25,39 +41,35 @@ A Discord bot for tracking Dream11 contest points and displaying leaderboards.
    ```bash
    pip install -r requirements.txt
    ```
-4. Copy `.env.example` to `.env` and fill in your values:
-   ```bash
-   cp .env.example .env
-   ```
-5. Edit `.env` with your Discord bot token and admin user ID
-6. Run the bot:
+4. Create a `.env` file with the required environment variables
+5. Run the bot:
    ```bash
    python dream11_bot.py
    ```
 
-### Railway Deployment
-
-1. Create a new project on Railway.app
-2. Connect your GitHub repository
-3. Add the following environment variables in Railway:
-   - `DISCORD_TOKEN`: Your Discord bot token
-   - `ADMIN_USER_ID`: Your Discord user ID
-4. Deploy the project
-
 ## Commands
 
-- `!win <username> <match_number>`: Record a match win (Admin only)
-- `!points <username> <points>`: Add/remove points (Admin only)
-- `!leaderboard`: Display the current leaderboard
-- `!undo`: Undo the last point change (Admin only)
-- `!clear`: Clear all points (Admin only)
+### Regular Commands
 
-## Database
+- `!win <username> <match_number>` - Add 1 point to a user for winning a match
+- `!d11` - Show Dream11 leaderboard
+- `!tdy` - Show today's scheduled matches
+- `!about` - Show help message
 
-The bot uses SQLite for data storage. The database file (`dream11.db`) will be automatically created when the bot starts.
+### Admin Commands
 
-## Requirements
+- `!undo` - Undo last point change
+- `!clearpoints` - Clear all points
+- `!adminlog` - Show detailed match results log
 
-- Python 3.8+
-- discord.py
-- python-dotenv
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

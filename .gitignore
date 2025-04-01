@@ -1,9 +1,14 @@
+# Environment variables
+.env
+.env.*
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -22,11 +27,7 @@ wheels/
 
 # Virtual Environment
 venv/
-env/
 ENV/
-.env
-.env.*
-!.env.example
 
 # IDE
 .idea/
@@ -34,9 +35,12 @@ ENV/
 *.swp
 *.swo
 
+# Logs
+*.log
+logs/
+
 # Project specific
 dream11.db
-*.log
 
 # OS specific
 .DS_Store
