@@ -584,29 +584,19 @@ async def on_message(message):
             try:
                 logger.info(f"Processing !mystats command for user {message.author.id}")
                 
-                # Get user's alert preference
+                # Get user's stats
                 try:
-                    alert_enabled = get_user_alert_preference(message.author.id)
-                    logger.info(f"Alert preference for user {message.author.id}: {alert_enabled}")
+                    stats = get_user_match_wins(message.author.id)
+                    if not stats:
+                        points = 0
+                        alert_enabled = False
+                    else:
+                        points, alert_enabled = stats[0]
+                    logger.info(f"Stats for user {message.author.id}: points={points}, alerts={alert_enabled}")
                 except Exception as e:
-                    logger.error(f"Error getting alert preference: {e}")
-                    alert_enabled = False
-                
-                # Get user's points
-                try:
-                    points = get_points(message.author.id)
-                    logger.info(f"Points for user {message.author.id}: {points}")
-                except Exception as e:
-                    logger.error(f"Error getting points: {e}")
+                    logger.error(f"Error getting user stats: {e}")
                     points = 0
-                
-                # Get user's match wins
-                try:
-                    match_wins = get_user_match_wins(message.author.id)
-                    logger.info(f"Match wins for user {message.author.id}: {len(match_wins)}")
-                except Exception as e:
-                    logger.error(f"Error getting match wins: {e}")
-                    match_wins = []
+                    alert_enabled = False
                 
                 # Create embed for stats
                 embed = discord.Embed(
@@ -629,50 +619,11 @@ async def on_message(message):
                     inline=True
                 )
                 
-                # Add match wins count
-                embed.add_field(
-                    name="Matches Won",
-                    value=str(len(match_wins)),
-                    inline=True
-                )
-                
                 # Add footer
                 embed.set_footer(text="Use !alert to toggle match alerts")
                 
-                # Send the stats embed first
+                # Send the stats embed
                 await message.channel.send(embed=embed)
-                
-                # Handle match history in separate messages if any
-                if match_wins:
-                    # Create match history text
-                    history_text = "🏆 Match History 🏆\n\n"
-                    
-                    # Add matches in chunks of 10
-                    chunk_size = 10
-                    for i in range(0, len(match_wins), chunk_size):
-                        chunk = match_wins[i:i + chunk_size]
-                        chunk_text = ""
-                        
-                        for match in chunk:
-                            match_num, _, _, _ = match
-                            # Get match details from schedule
-                            match_info = IPL_2025_SCHEDULE.get(match_num, {})
-                            if match_info:
-                                home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
-                                away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
-                                match_details = f"{home_team} vs {away_team}"
-                            else:
-                                match_details = "Unknown Teams"
-                            
-                            chunk_text += f"Match {match_num}: {match_details}\n"
-                        
-                        # Add chunk to history text
-                        history_text += chunk_text + "\n"
-                        
-                        # If we've reached the message limit or this is the last chunk, send the message
-                        if len(history_text) > 1900 or i + chunk_size >= len(match_wins):
-                            await message.channel.send(history_text)
-                            history_text = ""  # Reset for next chunk
                 
             except Exception as e:
                 logger.error(f"Error in mystats command: {e}")

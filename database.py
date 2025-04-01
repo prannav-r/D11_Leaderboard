@@ -259,8 +259,15 @@ def get_users_with_alerts() -> List[int]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
-        response = supabase.table('history').select('match_number,winner,updated_at,updated_by').eq('updated_by', str(user_id)).execute()
-        return response.data
+        # Get points for the user
+        points_response = supabase.table('points').select('points').eq('username', str(user_id)).execute()
+        points = points_response.data[0]['points'] if points_response.data else 0
+        
+        # Get alert status
+        alert_response = supabase.table('user_alerts').select('enabled').eq('user_id', user_id).execute()
+        alert_enabled = alert_response.data[0]['enabled'] if alert_response.data else False
+        
+        return [(points, alert_enabled)]
     except Exception as e:
-        logging.error(f"Error getting user match wins: {e}")
-        raise DatabaseError(f"Failed to get user match wins: {e}") 
+        logging.error(f"Error getting user stats: {e}")
+        raise DatabaseError(f"Failed to get user stats: {e}") 
