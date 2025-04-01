@@ -22,11 +22,37 @@ def init_db() -> None:
     """Initialize database tables and indexes"""
     try:
         # Test database connection and table existence
-        tables = ['points', 'history', 'match_results']
+        tables = ['points', 'history', 'match_results', 'user_alerts']
         for table in tables:
             try:
+                # Try to select from the table to verify it exists
                 response = supabase.table(table).select('count').execute()
                 logger.info(f"Successfully connected to {table} table")
+                
+                # For user_alerts table, verify structure
+                if table == 'user_alerts':
+                    # Try to insert a test record
+                    test_user_id = 123456789  # Test user ID
+                    try:
+                        supabase.table('user_alerts').insert({
+                            'user_id': test_user_id,
+                            'enabled': False
+                        }).execute()
+                        logger.info("Successfully tested user_alerts table insert")
+                        
+                        # Try to update the test record
+                        supabase.table('user_alerts').update({
+                            'enabled': True
+                        }).eq('user_id', test_user_id).execute()
+                        logger.info("Successfully tested user_alerts table update")
+                        
+                        # Clean up test record
+                        supabase.table('user_alerts').delete().eq('user_id', test_user_id).execute()
+                        logger.info("Successfully cleaned up test record")
+                    except Exception as e:
+                        logger.error(f"Error testing user_alerts table: {str(e)}")
+                        raise DatabaseError(f"Failed to test user_alerts table: {str(e)}")
+                        
             except Exception as e:
                 logger.error(f"Error accessing {table} table: {str(e)}")
                 raise DatabaseError(f"Failed to access {table} table: {str(e)}")
@@ -186,15 +212,31 @@ def get_user_alert_preference(user_id: int) -> bool:
 def set_user_alert_preference(user_id: int, enabled: bool) -> None:
     """Set user's alert preference"""
     try:
-        # Try to update first
-        response = supabase.table('user_alerts').update({'enabled': enabled}).eq('user_id', user_id).execute()
+        # First check if user preference exists
+        check_response = supabase.table('user_alerts').select('enabled').eq('user_id', user_id).execute()
         
-        # If no rows were updated, insert new preference
-        if not response.data:
-            supabase.table('user_alerts').insert({
+        if check_response.data:
+            # Update existing preference
+            response = supabase.table('user_alerts').update({
+                'enabled': enabled,
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            }).eq('user_id', user_id).execute()
+            
+            if not response.data:
+                logger.error(f"Failed to update alert preference for user {user_id}")
+                raise DatabaseError("Failed to update alert preference")
+        else:
+            # Insert new preference
+            response = supabase.table('user_alerts').insert({
                 'user_id': user_id,
-                'enabled': enabled
+                'enabled': enabled,
+                'created_at': datetime.now(timezone.utc).isoformat(),
+                'updated_at': datetime.now(timezone.utc).isoformat()
             }).execute()
+            
+            if not response.data:
+                logger.error(f"Failed to insert alert preference for user {user_id}")
+                raise DatabaseError("Failed to insert alert preference")
             
     except Exception as e:
         logger.error(f"Error setting user alert preference: {str(e)}")

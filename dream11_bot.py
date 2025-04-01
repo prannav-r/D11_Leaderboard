@@ -241,12 +241,12 @@ async def on_message(message):
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
                     
                     # Split matches into chunks of 10 for better readability
+                    match_log = "🏆 Dream11 Contest Match Winners Log 🏆\n\n"
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
                         
                         # Create header for each chunk
-                        match_log = "🏆 Dream11 Contest Match Winners Log 🏆\n\n"
                         match_log += "Match #     Match Details                    Winner\n"
                         match_log += "-" * 70 + "\n"
                         
@@ -329,14 +329,13 @@ async def on_message(message):
                 else:
                     # Sort match results by match number
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
+
+                    output = "📊 Detailed Match Results Log:\n\n"
                     
                     # Split matches into chunks of 10 for better readability
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
-                        
-                        # Create header for each chunk
-                        output = "📊 Detailed Match Results Log:\n\n"
                         
                         # Add matches for this chunk
                         for match_no, winner, timestamp, admin in chunk:
@@ -503,10 +502,12 @@ async def on_message(message):
             try:
                 # Get current preference
                 current_preference = get_user_alert_preference(message.author.id)
+                logger.info(f"Current alert preference for user {message.author.id}: {current_preference}")
                 
                 # Toggle the preference
                 new_preference = not current_preference
                 set_user_alert_preference(message.author.id, new_preference)
+                logger.info(f"Updated alert preference for user {message.author.id} to: {new_preference}")
                 
                 # Send confirmation message
                 if new_preference:
@@ -520,9 +521,18 @@ async def on_message(message):
                         "Use `!alert` again to enable alerts."
                     )
                     
+            except DatabaseError as e:
+                logger.error(f"Database error in alert command: {str(e)}")
+                await message.channel.send(
+                    "❌ Error updating alert preference. Database error occurred.\n"
+                    "Please try again later or contact an admin if the issue persists."
+                )
             except Exception as e:
-                logger.error(f"Error toggling alert preference: {str(e)}")
-                await message.channel.send("❌ Error updating alert preference. Please try again later.")
+                logger.error(f"Unexpected error in alert command: {str(e)}")
+                await message.channel.send(
+                    "❌ An unexpected error occurred while updating alert preference.\n"
+                    "Please try again later or contact an admin if the issue persists."
+                )
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
