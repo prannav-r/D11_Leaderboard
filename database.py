@@ -135,29 +135,35 @@ def get_match_results() -> List[Tuple[int, str, str, str]]:
             logger.info("No match results found in database")
             return []
 
-        # Join match_results with history to get the admin who recorded the win
-        response = supabase.table('match_results').select(
-            'match_number, winner, timestamp, history!inner(updated_by)'
+        # Get match results
+        match_response = supabase.table('match_results').select(
+            'match_number, winner, timestamp'
         ).order('match_number').execute()
         
-        if not response.data:
-            logger.info("No match results found after join")
+        if not match_response.data:
+            logger.info("No match results found")
             return []
             
-        # Process the response data
+        # Get corresponding history entries for each match
         results = []
-        for row in response.data:
+        for match in match_response.data:
             try:
-                # Extract the admin from the nested history data
-                admin = row['history']['updated_by'] if row.get('history') else 'Unknown'
+                # Get the history entry for this match
+                history_response = supabase.table('history').select(
+                    'updated_by'
+                ).eq('match_number', match['match_number']).limit(1).execute()
+                
+                # Get the admin who recorded the win
+                admin = history_response.data[0]['updated_by'] if history_response.data else 'Unknown'
+                
                 results.append((
-                    row['match_number'],
-                    row['winner'],
-                    row['timestamp'],
+                    match['match_number'],
+                    match['winner'],
+                    match['timestamp'],
                     admin
                 ))
             except Exception as e:
-                logger.error(f"Error processing row {row}: {str(e)}")
+                logger.error(f"Error processing match {match['match_number']}: {str(e)}")
                 continue
         
         return results
