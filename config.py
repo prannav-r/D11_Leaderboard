@@ -10,6 +10,10 @@ class Config:
     DISCORD_TOKEN: str = os.getenv('DISCORD_TOKEN', '')
     ADMIN_USER_IDS: list[int] = [int(id) for id in os.getenv('ADMIN_USER_IDS', '').split(',') if id]
     
+    # Supabase Configuration
+    SUPABASE_URL: str = os.getenv('SUPABASE_URL', '')
+    SUPABASE_KEY: str = os.getenv('SUPABASE_KEY', '')
+    
     # Database Configuration
     DB_PATH: str = os.getenv('DB_PATH', 'dream11.db')
     DB_TIMEOUT: int = int(os.getenv('DB_TIMEOUT', '30'))  # seconds
@@ -36,6 +40,13 @@ class Config:
             
         if not cls.ADMIN_USER_IDS:
             errors['ADMIN_USER_IDS'] = "At least one admin user ID is required"
+            
+        # Supabase Configuration Validation
+        if not cls.SUPABASE_URL:
+            errors['SUPABASE_URL'] = "Supabase URL is required"
+            
+        if not cls.SUPABASE_KEY:
+            errors['SUPABASE_KEY'] = "Supabase key is required"
             
         # Database Configuration Validation
         if cls.DB_TIMEOUT < 1:

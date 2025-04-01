@@ -7,7 +7,7 @@ import logging
 from collections import defaultdict
 from database import (
     init_db, get_points, update_points, clear_points,
-    undo_last_point, get_leaderboard, get_match_results,
+    undo_last_point, get_match_results,
     backup_database, DatabaseError
 )
 from config import Config
