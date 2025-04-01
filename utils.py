@@ -28,26 +28,21 @@ def is_admin(user) -> bool:
     """Check if the user is an admin"""
     return user.id in Config.ADMIN_USER_IDS
 
-def extract_mention_id(mention: str) -> str:
-    """Extract user ID from a Discord mention"""
-    match = re.match(r'<@!?(\d+)>', mention)
-    if match:
-        return match.group(1)
-    return mention
-
 def is_mention(text: str) -> bool:
     """Check if text is a Discord mention"""
-    return bool(re.match(r'<@!?\d+>', text))
+    return bool(re.match(r'<@!?\d+>', text)) or text.startswith('@')
 
 def format_username(username: str) -> str:
     """Format username for display"""
     if is_mention(username):
+        if username.startswith('@'):
+            return username
         return username
     return f"@{username}"
 
 def validate_input(username: str, match_number: int) -> tuple[bool, str]:
     """Validate input parameters"""
-    # Check if it's a mention
+    # Check if it's a mention or @username
     if is_mention(username):
         return True, ""
     

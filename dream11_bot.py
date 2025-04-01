@@ -23,7 +23,6 @@ from utils import (
     format_points,
     get_command_cooldown,
     check_rate_limit,
-    extract_mention_id,
     is_mention,
     format_username
 )
@@ -126,8 +125,12 @@ async def on_message(message):
                     return
             
             # Update points
-            update_points(username, 1, match_number, message.author.name)
-            await message.channel.send(f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}")
+            try:
+                update_points(username, 1, match_number, message.author.name)
+                await message.channel.send(f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}")
+            except Exception as e:
+                logger.error(f"Error updating points: {str(e)}")
+                await message.channel.send("❌ Error updating points. Please try again later.")
             
         elif message.content.startswith("!d11"):
             # Check command cooldown
