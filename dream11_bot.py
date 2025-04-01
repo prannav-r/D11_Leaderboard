@@ -17,7 +17,8 @@ from database import (
     get_match_results,
     get_user_alert_preference,
     set_user_alert_preference,
-    get_users_with_alerts
+    get_users_with_alerts,
+    get_user_match_wins
 )
 from utils import (
     setup_logging,
@@ -29,6 +30,7 @@ from utils import (
     is_mention,
     format_username
 )
+import time
 
 # Set up logging
 logger = setup_logging()
@@ -151,6 +153,12 @@ async def on_message(message):
         await message.channel.send("⚠️ You're using commands too quickly. Please wait a moment.")
         return
 
+    # Check for command cooldown
+    current_time = time.time()
+    if current_time - last_command_time < Config.COMMAND_COOLDOWN:
+        return
+    last_command_time = current_time
+
     try:
         if message.content.startswith("!win"):
             # Check command cooldown
@@ -241,12 +249,12 @@ async def on_message(message):
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
                     
                     # Split matches into chunks of 10 for better readability
-                    match_log = "🏆 Dream11 Contest Match Winners Log 🏆\n\n"
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
                         
                         # Create header for each chunk
+                        match_log = "🏆 Dream11 Contest Match Winners Log 🏆\n\n"
                         match_log += "Match #     Match Details                    Winner\n"
                         match_log += "-" * 70 + "\n"
                         
@@ -329,13 +337,12 @@ async def on_message(message):
                 else:
                     # Sort match results by match number
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
-
-                    output = "📊 Detailed Match Results Log:\n\n"
                     
                     # Split matches into chunks of 10 for better readability
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
+                        output = "📊 Detailed Match Results Log:\n\n"
                         
                         # Add matches for this chunk
                         for match_no, winner, timestamp, admin in chunk:
@@ -533,6 +540,68 @@ async def on_message(message):
                     "❌ An unexpected error occurred while updating alert preference.\n"
                     "Please try again later or contact an admin if the issue persists."
                 )
+
+        elif message.content.startswith('!mystats'):
+            try:
+                # Get user's alert preference
+                alert_enabled = get_user_alert_preference(message.author.id)
+                
+                # Get user's points
+                points = get_points(message.author.id)
+                
+                # Get user's match wins
+                match_wins = get_user_match_wins(message.author.id)
+                
+                # Create embed for stats
+                embed = discord.Embed(
+                    title=f"📊 Stats for {message.author.name}",
+                    color=discord.Color.blue()
+                )
+                
+                # Add alert status
+                alert_status = "✅ Enabled" if alert_enabled else "❌ Disabled"
+                embed.add_field(
+                    name="Match Alerts",
+                    value=alert_status,
+                    inline=True
+                )
+                
+                # Add points
+                embed.add_field(
+                    name="Points",
+                    value=str(points),
+                    inline=True
+                )
+                
+                # Add match wins count
+                embed.add_field(
+                    name="Matches Won",
+                    value=str(len(match_wins)),
+                    inline=True
+                )
+                
+                # Add match wins details if any
+                if match_wins:
+                    wins_text = ""
+                    for match in match_wins:
+                        match_num, winner, timestamp, _ = match
+                        wins_text += f"Match {match_num}: {winner}\n"
+                    embed.add_field(
+                        name="Match History",
+                        value=wins_text,
+                        inline=False
+                    )
+                
+                # Add footer
+                embed.set_footer(text="Use !alert to toggle match alerts")
+                
+                await message.channel.send(embed=embed)
+                
+            except DatabaseError as e:
+                await message.channel.send(f"❌ Error fetching stats: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error in mystats command: {e}")
+                await message.channel.send("❌ An unexpected error occurred. Please try again later.")
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
