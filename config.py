@@ -12,7 +12,7 @@ class Config:
     
     # Supabase Configuration
     SUPABASE_URL: str = os.getenv('SUPABASE_URL', '')
-    SUPABASE_KEY: str = os.getenv('SUPABASE_KEY', '')
+    SUPABASE_KEY: str = os.getenv('SUPABASE_KEY', '')  # Use service_role key for server-side operations
     
     # Database Configuration
     DB_PATH: str = os.getenv('DB_PATH', 'dream11.db')
@@ -46,7 +46,9 @@ class Config:
             errors['SUPABASE_URL'] = "Supabase URL is required"
             
         if not cls.SUPABASE_KEY:
-            errors['SUPABASE_KEY'] = "Supabase key is required"
+            errors['SUPABASE_KEY'] = "Supabase service_role key is required"
+        elif cls.SUPABASE_KEY.startswith('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMmYTn_I0'):
+            errors['SUPABASE_KEY'] = "Please use the service_role key, not the anon key"
             
         # Database Configuration Validation
         if cls.DB_TIMEOUT < 1:
