@@ -619,22 +619,43 @@ async def on_message(message):
                     inline=True
                 )
                 
-                # Add match wins details if any
-                if match_wins:
-                    wins_text = ""
-                    for match in match_wins:
-                        match_num, winner, timestamp, _ = match
-                        wins_text += f"Match {match_num}: {winner}\n"
-                    embed.add_field(
-                        name="Match History",
-                        value=wins_text,
-                        inline=False
-                    )
-                
                 # Add footer
                 embed.set_footer(text="Use !alert to toggle match alerts")
                 
+                # Send the stats embed first
                 await message.channel.send(embed=embed)
+                
+                # Handle match history in separate messages if any
+                if match_wins:
+                    # Create match history text
+                    history_text = "🏆 Match History 🏆\n\n"
+                    
+                    # Add matches in chunks of 10
+                    chunk_size = 10
+                    for i in range(0, len(match_wins), chunk_size):
+                        chunk = match_wins[i:i + chunk_size]
+                        chunk_text = ""
+                        
+                        for match in chunk:
+                            match_num, _, _, _ = match
+                            # Get match details from schedule
+                            match_info = IPL_2025_SCHEDULE.get(match_num, {})
+                            if match_info:
+                                home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                                away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                                match_details = f"{home_team} vs {away_team}"
+                            else:
+                                match_details = "Unknown Teams"
+                            
+                            chunk_text += f"Match {match_num}: {match_details}\n"
+                        
+                        # Add chunk to history text
+                        history_text += chunk_text + "\n"
+                        
+                        # If we've reached the message limit or this is the last chunk, send the message
+                        if len(history_text) > 1900 or i + chunk_size >= len(match_wins):
+                            await message.channel.send(history_text)
+                            history_text = ""  # Reset for next chunk
                 
             except DatabaseError as e:
                 await message.channel.send(f"❌ Error fetching stats: {str(e)}")
