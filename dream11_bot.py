@@ -582,14 +582,31 @@ async def on_message(message):
 
         elif message.content.startswith('!mystats'):
             try:
+                logger.info(f"Processing !mystats command for user {message.author.id}")
+                
                 # Get user's alert preference
-                alert_enabled = get_user_alert_preference(message.author.id)
+                try:
+                    alert_enabled = get_user_alert_preference(message.author.id)
+                    logger.info(f"Alert preference for user {message.author.id}: {alert_enabled}")
+                except Exception as e:
+                    logger.error(f"Error getting alert preference: {e}")
+                    alert_enabled = False
                 
                 # Get user's points
-                points = get_points(message.author.id)
+                try:
+                    points = get_points(message.author.id)
+                    logger.info(f"Points for user {message.author.id}: {points}")
+                except Exception as e:
+                    logger.error(f"Error getting points: {e}")
+                    points = 0
                 
                 # Get user's match wins
-                match_wins = get_user_match_wins(message.author.id)
+                try:
+                    match_wins = get_user_match_wins(message.author.id)
+                    logger.info(f"Match wins for user {message.author.id}: {len(match_wins)}")
+                except Exception as e:
+                    logger.error(f"Error getting match wins: {e}")
+                    match_wins = []
                 
                 # Create embed for stats
                 embed = discord.Embed(
@@ -657,8 +674,6 @@ async def on_message(message):
                             await message.channel.send(history_text)
                             history_text = ""  # Reset for next chunk
                 
-            except DatabaseError as e:
-                await message.channel.send(f"❌ Error fetching stats: {str(e)}")
             except Exception as e:
                 logger.error(f"Error in mystats command: {e}")
                 await message.channel.send("❌ An unexpected error occurred. Please try again later.")

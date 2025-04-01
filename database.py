@@ -1,7 +1,7 @@
 from supabase import create_client, Client
 from datetime import datetime, timezone
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from config import Config
 
 # Set up logging
@@ -63,14 +63,19 @@ def init_db() -> None:
         logger.error(f"Error initializing database: {str(e)}")
         raise DatabaseError(f"Failed to initialize database: {str(e)}")
 
-def get_points() -> Dict[str, int]:
-    """Get current points for all users"""
+def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
+    """Get points for all users or a specific user"""
     try:
-        response = supabase.table('points').select('username, points').execute()
-        if not response.data:
-            logger.info("No points found in database")
-            return {}
-        return {row['username']: row['points'] for row in response.data}
+        if user_id is not None:
+            # Get points for specific user
+            response = supabase.table('points').select('points').eq('user_id', str(user_id)).execute()
+            if response.data:
+                return response.data[0]['points']
+            return 0
+        else:
+            # Get points for all users
+            response = supabase.table('points').select('user_id,points').execute()
+            return {item['user_id']: item['points'] for item in response.data}
     except Exception as e:
         logger.error(f"Error getting points: {str(e)}")
         raise DatabaseError(f"Failed to get points: {str(e)}")
