@@ -21,31 +21,8 @@ class DatabaseError(Exception):
 def init_db() -> None:
     """Initialize database tables and indexes"""
     try:
-        # Create points table
-        supabase.table('points').insert({
-            'username': 'test',
-            'points': 0
-        }).execute()
-        supabase.table('points').delete().eq('username', 'test').execute()
-        
-        # Create history table
-        supabase.table('history').insert({
-            'username': 'test',
-            'points': 0,
-            'match_number': 1,
-            'updated_by': 'test',
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }).execute()
-        supabase.table('history').delete().eq('username', 'test').execute()
-        
-        # Create match_results table
-        supabase.table('match_results').insert({
-            'match_number': 1,
-            'winner': 'test',
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }).execute()
-        supabase.table('match_results').delete().eq('match_number', 1).execute()
-        
+        # Test database connection
+        supabase.table('points').select('count').execute()
         logger.info("Database initialized successfully")
         
     except Exception as e:
@@ -64,11 +41,10 @@ def get_points() -> Dict[str, int]:
 def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
     """Update points for a user and record in history"""
     try:
-        # Start transaction
-        supabase.rpc('begin_transaction').execute()
-        
-        # Update points
+        # Get current points
         current_points = supabase.table('points').select('points').eq('username', username).execute()
+        
+        # Update or insert points
         if not current_points.data:
             supabase.table('points').insert({
                 'username': username,
@@ -87,48 +63,32 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
             'timestamp': datetime.now(timezone.utc).isoformat()
         }).execute()
         
-        # Record match result
-        supabase.table('match_results').insert({
+        # Record match result (use upsert to handle duplicates)
+        supabase.table('match_results').upsert({
             'match_number': match_number,
             'winner': username,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }).execute()
         
-        # Commit transaction
-        supabase.rpc('commit_transaction').execute()
-        
     except Exception as e:
-        # Rollback transaction
-        supabase.rpc('rollback_transaction').execute()
         logger.error(f"Error updating points: {str(e)}")
         raise DatabaseError(f"Failed to update points: {str(e)}")
 
 def clear_points() -> None:
     """Clear all points and history"""
     try:
-        # Start transaction
-        supabase.rpc('begin_transaction').execute()
-        
         # Clear all tables
         supabase.table('points').delete().neq('username', '').execute()
         supabase.table('history').delete().neq('username', '').execute()
         supabase.table('match_results').delete().neq('match_number', 0).execute()
         
-        # Commit transaction
-        supabase.rpc('commit_transaction').execute()
-        
     except Exception as e:
-        # Rollback transaction
-        supabase.rpc('rollback_transaction').execute()
         logger.error(f"Error clearing points: {str(e)}")
         raise DatabaseError(f"Failed to clear points: {str(e)}")
 
 def undo_last_point() -> Tuple[bool, str]:
     """Undo the last point change"""
     try:
-        # Start transaction
-        supabase.rpc('begin_transaction').execute()
-        
         # Get last history entry
         last_entry = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
         
@@ -149,14 +109,9 @@ def undo_last_point() -> Tuple[bool, str]:
         # Delete match result
         supabase.table('match_results').delete().eq('match_number', entry['match_number']).execute()
         
-        # Commit transaction
-        supabase.rpc('commit_transaction').execute()
-        
         return True, f"Undid {entry['points']} point(s) for {entry['username']}"
         
     except Exception as e:
-        # Rollback transaction
-        supabase.rpc('rollback_transaction').execute()
         logger.error(f"Error undoing last point: {str(e)}")
         raise DatabaseError(f"Failed to undo last point: {str(e)}")
 
