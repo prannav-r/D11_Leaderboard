@@ -60,13 +60,17 @@ def format_points(points: Dict[str, int]) -> str:
     if not points:
         return "No points recorded yet!"
     
-    sorted_users = sorted(points.items(), key=lambda x: x[1], reverse=True)
-    leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
-    
-    for rank, (user, points) in enumerate(sorted_users, 1):
-        leaderboard += f"{rank}. {format_username(user)}: {points} point(s)\n"
-    
-    return leaderboard
+    try:
+        sorted_users = sorted(points.items(), key=lambda x: x[1], reverse=True)
+        leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
+        
+        for rank, (user, points) in enumerate(sorted_users, 1):
+            leaderboard += f"{rank}. {format_username(user)}: {points} point(s)\n"
+        
+        return leaderboard
+    except Exception as e:
+        logger.error(f"Error formatting points: {str(e)}")
+        return "Error formatting leaderboard. Please try again later."
 
 def get_command_cooldown(user_id: int, command: str) -> bool:
     """Check if command is on cooldown for user"""

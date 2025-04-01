@@ -123,10 +123,20 @@ def get_match_results() -> List[Tuple[int, str, str, str]]:
             'match_number, winner, timestamp, history!inner(updated_by)'
         ).order('match_number').execute()
         
-        return [
-            (row['match_number'], row['winner'], row['timestamp'], row['history']['updated_by'])
-            for row in response.data
-        ]
+        # Process the response data
+        results = []
+        for row in response.data:
+            # Extract the admin from the nested history data
+            admin = row['history']['updated_by'] if row.get('history') else 'Unknown'
+            results.append((
+                row['match_number'],
+                row['winner'],
+                row['timestamp'],
+                admin
+            ))
+        
+        return results
+        
     except Exception as e:
         logger.error(f"Error getting match results: {str(e)}")
         raise DatabaseError(f"Failed to get match results: {str(e)}") 
