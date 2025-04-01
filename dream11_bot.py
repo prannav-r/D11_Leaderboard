@@ -67,10 +67,21 @@ def load_schedule():
             reader = csv.DictReader(f)
             for row in reader:
                 match_no = int(row['Match No'])
+                # Convert time format from "7:30 PM" to "19:30"
+                time_str = row['Start']
+                try:
+                    # Parse the time with AM/PM format
+                    time_obj = datetime.strptime(time_str, '%I:%M %p')
+                    # Convert to 24-hour format
+                    time_24h = time_obj.strftime('%H:%M')
+                except ValueError as e:
+                    logger.error(f"Error parsing time '{time_str}' for match {match_no}: {e}")
+                    time_24h = time_str  # Keep original if parsing fails
+                
                 schedule[match_no] = {
                     'date': datetime.strptime(row['Date'], '%Y-%m-%d'),
                     'day': row['Day'],
-                    'start': row['Start'],
+                    'start': time_24h,
                     'home': row['Home'],
                     'away': row['Away'],
                     'venue': row['Venue']
