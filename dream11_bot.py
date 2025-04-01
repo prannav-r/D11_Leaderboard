@@ -22,7 +22,8 @@ from utils import (
     validate_input,
     format_points,
     get_command_cooldown,
-    check_rate_limit
+    check_rate_limit,
+    extract_mention_id
 )
 
 # Set up logging
@@ -258,7 +259,7 @@ async def on_message(message):
             )
             embed.add_field(
                 name="1. `!win <username> <match_number>`",
-                value="Add 1 point to a user for winning a match",
+                value="Add 1 point to a user for winning a match\nYou can use @mentions or regular usernames",
                 inline=False
             )
             embed.add_field(

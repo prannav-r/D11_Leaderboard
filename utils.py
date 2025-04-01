@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Dict, Any
 from config import Config
+import re
 
 # Set up logging
 logging.basicConfig(
@@ -27,10 +28,22 @@ def is_admin(user) -> bool:
     """Check if the user is an admin"""
     return user.id in Config.ADMIN_USER_IDS
 
+def extract_mention_id(mention: str) -> str:
+    """Extract user ID from a Discord mention"""
+    match = re.match(r'<@!?(\d+)>', mention)
+    if match:
+        return match.group(1)
+    return mention
+
 def validate_input(username: str, match_number: int) -> tuple[bool, str]:
     """Validate input parameters"""
+    # Check if it's a mention
+    if re.match(r'<@!?\d+>', username):
+        return True, ""
+    
+    # Regular username validation
     if not username or len(username) > 32 or not username.isalnum():
-        return False, "Invalid username format. Use only letters and numbers."
+        return False, "Invalid username format. Use only letters and numbers or mention a user."
     
     if not isinstance(match_number, int) or match_number < 1 or match_number > Config.MAX_MATCH_NUMBER:
         return False, f"Invalid match number. Must be between 1 and {Config.MAX_MATCH_NUMBER}."
@@ -46,7 +59,11 @@ def format_points(points: Dict[str, int]) -> str:
     leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
     
     for rank, (user, points) in enumerate(sorted_users, 1):
-        leaderboard += f"{rank}. {user}: {points} point(s)\n"
+        # Check if the user is a mention
+        if re.match(r'<@!?\d+>', user):
+            leaderboard += f"{rank}. {user}: {points} point(s)\n"
+        else:
+            leaderboard += f"{rank}. @{user}: {points} point(s)\n"
     
     return leaderboard
 
