@@ -44,6 +44,9 @@ client = discord.Client(intents=intents)
 # Initialize database
 init_db()
 
+# Initialize command cooldown tracking
+last_command_time = 0
+
 # Load IPL 2025 Schedule
 def load_schedule():
     schedule = {}
