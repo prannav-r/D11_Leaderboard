@@ -46,5 +46,8 @@ CREATE POLICY "Users can insert their own alert preferences"
     FOR INSERT
     WITH CHECK (true);  -- We'll handle access control in the application layer
 
--- Create index for better query performance
-CREATE INDEX IF NOT EXISTS idx_user_alerts_user_id ON user_alerts(user_id); 
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_user_alerts_user_id ON user_alerts(user_id);
+CREATE INDEX IF NOT EXISTS idx_history_username ON history(username);
+CREATE INDEX IF NOT EXISTS idx_history_match_number ON history(match_number);
+CREATE INDEX IF NOT EXISTS idx_match_results_winner ON match_results(winner); 
