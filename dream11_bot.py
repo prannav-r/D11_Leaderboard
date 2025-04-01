@@ -160,18 +160,35 @@ async def on_message(message):
                 match_results = get_match_results()
                 
                 # Format leaderboard
-                leaderboard = format_points(points)
+                leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
+                if points:
+                    sorted_users = sorted(points.items(), key=lambda x: x[1], reverse=True)
+                    for rank, (user, points) in enumerate(sorted_users, 1):
+                        leaderboard += f"{rank}. {format_username(user)}: {points} point(s)\n"
+                else:
+                    leaderboard += "No points recorded yet!\n"
                 
                 # Add match results section
                 if match_results:
-                    leaderboard += "\n\n📊 Match Results Log:\n"
-                    leaderboard += "-" * 30 + "\n"
-                    for match_no, winner, timestamp, admin in match_results:
-                        leaderboard += f"Match: {match_no}\n"
-                        leaderboard += f"Winner: {format_username(winner)}\n"
-                        leaderboard += f"Recorded by: {admin}\n"
-                        leaderboard += f"Time: {timestamp}\n"
-                        leaderboard += "-" * 30 + "\n"
+                    leaderboard += "\n\n🏆 Dream11 Contest Match Winners Log 🏆\n\n"
+                    leaderboard += "Match #     Match Details                    Winner\n"
+                    leaderboard += "-" * 70 + "\n"
+                    
+                    # Sort match results by match number
+                    sorted_matches = sorted(match_results, key=lambda x: x[0])
+                    
+                    for match_no, winner, _, _ in sorted_matches:
+                        # Get match details from schedule
+                        match_info = IPL_2025_SCHEDULE.get(match_no, {})
+                        if match_info:
+                            home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                            away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                            match_details = f"{home_team} vs {away_team}"
+                        else:
+                            match_details = "Unknown Teams"
+                        
+                        # Format the line with proper spacing
+                        leaderboard += f"Match {match_no:<5} {match_details:<30} {format_username(winner)}\n"
                 
                 await message.channel.send(leaderboard)
             except Exception as e:
