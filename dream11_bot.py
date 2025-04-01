@@ -34,38 +34,60 @@ import time
 
 # Set up logging
 logger = setup_logging()
+logger.info("Starting Dream11 Bot initialization...")
 
 # Initialize client
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.guilds = True
+intents.guild_messages = True
+intents.dm_messages = True
+intents.dm_reactions = True
 client = discord.Client(intents=intents)
+logger.info("Discord client initialized with required intents")
 
 # Initialize database
-init_db()
+try:
+    init_db()
+    logger.info("Database initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize database: {e}")
+    raise
 
 # Initialize command cooldown tracking
 last_command_time = 0
+logger.info("Command cooldown tracking initialized")
 
 # Load IPL 2025 Schedule
 def load_schedule():
-    schedule = {}
-    with open('IPL_2025_SEASON_SCHEDULE.csv', 'r') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            match_no = int(row['Match No'])
-            schedule[match_no] = {
-                'date': datetime.strptime(row['Date'], '%Y-%m-%d'),
-                'day': row['Day'],
-                'start': row['Start'],
-                'home': row['Home'],
-                'away': row['Away'],
-                'venue': row['Venue']
-            }
-    return schedule
+    try:
+        schedule = {}
+        with open('IPL_2025_SEASON_SCHEDULE.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                match_no = int(row['Match No'])
+                schedule[match_no] = {
+                    'date': datetime.strptime(row['Date'], '%Y-%m-%d'),
+                    'day': row['Day'],
+                    'start': row['Start'],
+                    'home': row['Home'],
+                    'away': row['Away'],
+                    'venue': row['Venue']
+                }
+        logger.info(f"Successfully loaded schedule with {len(schedule)} matches")
+        return schedule
+    except Exception as e:
+        logger.error(f"Failed to load schedule: {e}")
+        raise
 
 # Load schedule at startup
-IPL_2025_SCHEDULE = load_schedule()
+try:
+    IPL_2025_SCHEDULE = load_schedule()
+    logger.info("IPL schedule loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load IPL schedule: {e}")
+    raise
 
 # Team name to acronym mapping
 TEAM_ACRONYMS = {
@@ -143,8 +165,10 @@ async def check_match_alerts():
 @client.event
 async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
+    logger.info(f"Bot is in {len(client.guilds)} guilds")
     # Start the alert checking task
     client.loop.create_task(check_match_alerts())
+    logger.info("Alert checking task started")
 
 @client.event
 async def on_message(message):
@@ -611,4 +635,9 @@ async def on_message(message):
         await message.channel.send("❌ An unexpected error occurred. Please try again later.")
 
 # Run the bot
-client.run(Config.DISCORD_TOKEN)
+try:
+    logger.info("Attempting to start bot with Discord token...")
+    client.run(Config.DISCORD_TOKEN)
+except Exception as e:
+    logger.error(f"Failed to start bot: {e}")
+    raise
