@@ -21,8 +21,16 @@ class DatabaseError(Exception):
 def init_db() -> None:
     """Initialize database tables and indexes"""
     try:
-        # Test database connection
-        supabase.table('points').select('count').execute()
+        # Test database connection and table existence
+        tables = ['points', 'history', 'match_results']
+        for table in tables:
+            try:
+                response = supabase.table(table).select('count').execute()
+                logger.info(f"Successfully connected to {table} table")
+            except Exception as e:
+                logger.error(f"Error accessing {table} table: {str(e)}")
+                raise DatabaseError(f"Failed to access {table} table: {str(e)}")
+        
         logger.info("Database initialized successfully")
         
     except Exception as e:
@@ -33,6 +41,9 @@ def get_points() -> Dict[str, int]:
     """Get current points for all users"""
     try:
         response = supabase.table('points').select('username, points').execute()
+        if not response.data:
+            logger.info("No points found in database")
+            return {}
         return {row['username']: row['points'] for row in response.data}
     except Exception as e:
         logger.error(f"Error getting points: {str(e)}")
@@ -118,22 +129,36 @@ def undo_last_point() -> Tuple[bool, str]:
 def get_match_results() -> List[Tuple[int, str, str, str]]:
     """Get all match results with admin who recorded them"""
     try:
+        # First check if we have any match results
+        check_response = supabase.table('match_results').select('count').execute()
+        if not check_response.data or check_response.data[0]['count'] == 0:
+            logger.info("No match results found in database")
+            return []
+
         # Join match_results with history to get the admin who recorded the win
         response = supabase.table('match_results').select(
             'match_number, winner, timestamp, history!inner(updated_by)'
         ).order('match_number').execute()
         
+        if not response.data:
+            logger.info("No match results found after join")
+            return []
+            
         # Process the response data
         results = []
         for row in response.data:
-            # Extract the admin from the nested history data
-            admin = row['history']['updated_by'] if row.get('history') else 'Unknown'
-            results.append((
-                row['match_number'],
-                row['winner'],
-                row['timestamp'],
-                admin
-            ))
+            try:
+                # Extract the admin from the nested history data
+                admin = row['history']['updated_by'] if row.get('history') else 'Unknown'
+                results.append((
+                    row['match_number'],
+                    row['winner'],
+                    row['timestamp'],
+                    admin
+                ))
+            except Exception as e:
+                logger.error(f"Error processing row {row}: {str(e)}")
+                continue
         
         return results
         

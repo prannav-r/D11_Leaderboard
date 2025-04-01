@@ -176,7 +176,16 @@ async def on_message(message):
                 await message.channel.send(leaderboard)
             except Exception as e:
                 logger.error(f"Error displaying leaderboard: {str(e)}")
-                await message.channel.send("❌ Error displaying leaderboard. Please try again later.")
+                error_message = "❌ Error displaying leaderboard. "
+                if "Failed to access" in str(e):
+                    error_message += "Database connection error. Please check your Supabase configuration."
+                elif "Failed to get points" in str(e):
+                    error_message += "Unable to fetch points data."
+                elif "Failed to get match results" in str(e):
+                    error_message += "Unable to fetch match results."
+                else:
+                    error_message += "Please try again later."
+                await message.channel.send(error_message)
 
         elif message.content.startswith("!undo"):
             # Check command cooldown
@@ -235,7 +244,14 @@ async def on_message(message):
                     await message.channel.send(output)
             except Exception as e:
                 logger.error(f"Error reading match results: {str(e)}")
-                await message.channel.send("❌ Error reading match results. Please try again later.")
+                error_message = "❌ Error reading match results. "
+                if "Failed to access" in str(e):
+                    error_message += "Database connection error. Please check your Supabase configuration."
+                elif "Failed to get match results" in str(e):
+                    error_message += "Unable to fetch match results data."
+                else:
+                    error_message += "Please try again later."
+                await message.channel.send(error_message)
 
         elif message.content.startswith("!tdy"):
             # Check command cooldown
