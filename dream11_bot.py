@@ -586,13 +586,13 @@ async def on_message(message):
                 
                 # Get user's stats
                 try:
-                    stats = get_user_match_wins(message.author.id)
-                    if not stats:
-                        points = 0
-                        alert_enabled = False
-                    else:
-                        points, alert_enabled = stats[0]
-                    logger.info(f"Stats for user {message.author.id}: points={points}, alerts={alert_enabled}")
+                    # Get points using username
+                    points = get_points(message.author.name)
+                    logger.info(f"Points for user {message.author.name}: {points}")
+                    
+                    # Get alert status
+                    alert_enabled = get_user_alert_preference(message.author.id)
+                    logger.info(f"Alert status for user {message.author.id}: {alert_enabled}")
                 except Exception as e:
                     logger.error(f"Error getting user stats: {e}")
                     points = 0

@@ -259,7 +259,7 @@ def get_users_with_alerts() -> List[int]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
-        # Get points for the user
+        # Get points for the user using their username
         points_response = supabase.table('points').select('points').eq('username', str(user_id)).execute()
         points = points_response.data[0]['points'] if points_response.data else 0
         
