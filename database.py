@@ -249,4 +249,13 @@ def get_users_with_alerts() -> List[int]:
         return [row['user_id'] for row in response.data]
     except Exception as e:
         logger.error(f"Error getting users with alerts: {str(e)}")
-        raise DatabaseError(f"Failed to get users with alerts: {str(e)}") 
+        raise DatabaseError(f"Failed to get users with alerts: {str(e)}")
+
+def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
+    """Get all matches won by a specific user"""
+    try:
+        response = supabase.table('history').select('match_number,winner,updated_at,updated_by').eq('updated_by', str(user_id)).execute()
+        return response.data
+    except Exception as e:
+        logging.error(f"Error getting user match wins: {e}")
+        raise DatabaseError(f"Failed to get user match wins: {e}") 
