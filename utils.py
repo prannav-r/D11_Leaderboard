@@ -19,30 +19,19 @@ command_cooldowns = {}
 
 def setup_logging():
     """Set up logging configuration"""
-    # Create logs directory if it doesn't exist
-    if not os.path.exists('logs'):
-        os.makedirs('logs')
+    # Create a logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(getattr(logging, Config.LOG_LEVEL))
     
-    # Create a file handler
-    log_file = os.path.join('logs', f'dream11_bot_{datetime.now().strftime("%Y%m%d")}.log')
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
-    
-    # Create a console handler
+    # Create a console handler (for Railway logs)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(getattr(logging, Config.LOG_LEVEL))
     
     # Create a formatter
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
     
-    # Get the logger
-    logger = logging.getLogger(__name__)
-    logger.setLevel(getattr(logging, Config.LOG_LEVEL))
-    
-    # Add the handlers
-    logger.addHandler(file_handler)
+    # Add the handler
     logger.addHandler(console_handler)
     
     return logger

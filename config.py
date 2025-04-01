@@ -1,9 +1,12 @@
 import os
 from dotenv import load_dotenv
 from typing import Dict, Any
+import logging
 
 # Load environment variables
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class Config:
     # Discord Configuration
@@ -27,7 +30,7 @@ class Config:
     
     # Development Settings
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
-    LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
+    LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')  # Railway will capture all console output
     
     @classmethod
     def validate(cls) -> Dict[str, Any]:
@@ -70,5 +73,9 @@ class Config:
         # Create backup directory if it doesn't exist
         if not os.path.exists(cls.DB_BACKUP_PATH):
             os.makedirs(cls.DB_BACKUP_PATH)
+            
+        # Log validation errors
+        if errors:
+            logger.error(f"Configuration validation failed: {errors}")
             
         return errors 
