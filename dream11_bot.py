@@ -269,14 +269,44 @@ async def on_message(message):
                 if not match_results:
                     await message.channel.send("No match results recorded yet!")
                 else:
-                    output = "📊 Detailed Match Results Log:\n\n"
-                    for match_no, winner, timestamp, admin in match_results:
-                        output += f"Match: {match_no}\n"
-                        output += f"Winner: {format_username(winner)}\n"
-                        output += f"Recorded by: {admin}\n"
-                        output += f"Timestamp: {timestamp}\n"
-                        output += "-" * 30 + "\n"
-                    await message.channel.send(output)
+                    # Sort match results by match number
+                    sorted_matches = sorted(match_results, key=lambda x: x[0])
+                    
+                    # Split matches into chunks of 10 for better readability
+                    chunk_size = 10
+                    for i in range(0, len(sorted_matches), chunk_size):
+                        chunk = sorted_matches[i:i + chunk_size]
+                        
+                        # Create header for each chunk
+                        output = "📊 Detailed Match Results Log:\n\n"
+                        
+                        # Add matches for this chunk
+                        for match_no, winner, timestamp, admin in chunk:
+                            # Get match details from schedule
+                            match_info = IPL_2025_SCHEDULE.get(match_no, {})
+                            if match_info:
+                                home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                                away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                                match_details = f"{home_team} vs {away_team}"
+                            else:
+                                match_details = "Unknown Teams"
+                            
+                            output += f"Match: {match_no}\n"
+                            output += f"Teams: {match_details}\n"
+                            output += f"Winner: {format_username(winner)}\n"
+                            output += f"Recorded by: {admin}\n"
+                            output += f"Timestamp: {timestamp}\n"
+                            output += "-" * 30 + "\n"
+                        
+                        # Add page number if there are multiple chunks
+                        if len(sorted_matches) > chunk_size:
+                            current_page = (i // chunk_size) + 1
+                            total_pages = (len(sorted_matches) + chunk_size - 1) // chunk_size
+                            output += f"\nPage {current_page} of {total_pages}"
+                        
+                        # Send the chunk
+                        await message.channel.send(output)
+                        
             except Exception as e:
                 logger.error(f"Error reading match results: {str(e)}")
                 error_message = "❌ Error reading match results. "
