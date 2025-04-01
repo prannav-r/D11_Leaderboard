@@ -192,6 +192,7 @@ async def on_message(message):
         return
 
     # Check for command cooldown
+    global last_command_time
     current_time = time.time()
     if current_time - last_command_time < Config.COMMAND_COOLDOWN:
         return
