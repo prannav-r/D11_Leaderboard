@@ -35,10 +35,20 @@ def extract_mention_id(mention: str) -> str:
         return match.group(1)
     return mention
 
+def is_mention(text: str) -> bool:
+    """Check if text is a Discord mention"""
+    return bool(re.match(r'<@!?\d+>', text))
+
+def format_username(username: str) -> str:
+    """Format username for display"""
+    if is_mention(username):
+        return username
+    return f"@{username}"
+
 def validate_input(username: str, match_number: int) -> tuple[bool, str]:
     """Validate input parameters"""
     # Check if it's a mention
-    if re.match(r'<@!?\d+>', username):
+    if is_mention(username):
         return True, ""
     
     # Regular username validation
@@ -59,11 +69,7 @@ def format_points(points: Dict[str, int]) -> str:
     leaderboard = "🏆 Dream11 Leaderboard 🏆\n\n"
     
     for rank, (user, points) in enumerate(sorted_users, 1):
-        # Check if the user is a mention
-        if re.match(r'<@!?\d+>', user):
-            leaderboard += f"{rank}. {user}: {points} point(s)\n"
-        else:
-            leaderboard += f"{rank}. @{user}: {points} point(s)\n"
+        leaderboard += f"{rank}. {format_username(user)}: {points} point(s)\n"
     
     return leaderboard
 

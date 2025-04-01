@@ -23,7 +23,9 @@ from utils import (
     format_points,
     get_command_cooldown,
     check_rate_limit,
-    extract_mention_id
+    extract_mention_id,
+    is_mention,
+    format_username
 )
 
 # Set up logging
@@ -125,7 +127,7 @@ async def on_message(message):
             
             # Update points
             update_points(username, 1, match_number, message.author.name)
-            await message.channel.send(f"✅ Added 1 point to {username} for winning Match {match_number}")
+            await message.channel.send(f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}")
             
         elif message.content.startswith("!d11"):
             # Check command cooldown
@@ -187,7 +189,7 @@ async def on_message(message):
                     output = "Match Results Log:\n\n"
                     for match_no, winner, timestamp in match_results:
                         output += f"Match: {match_no}\n"
-                        output += f"Winner: {winner}\n"
+                        output += f"Winner: {format_username(winner)}\n"
                         output += f"Timestamp: {timestamp}\n"
                         output += "-" * 30 + "\n"
                     await message.channel.send(output)
