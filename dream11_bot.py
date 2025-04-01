@@ -1,16 +1,28 @@
 import discord
-from datetime import datetime, timedelta
-import csv
-from dotenv import load_dotenv
-import os
+from discord.ext import commands
+from discord import app_commands
+import asyncio
 import logging
-from collections import defaultdict
-from database import (
-    init_db, get_points, update_points, clear_points,
-    undo_last_point, get_match_results,
-    backup_database, DatabaseError
-)
+from datetime import datetime, timezone
+from typing import Optional, Dict, List
+import re
 from config import Config
+from database import (
+    init_db,
+    get_points,
+    update_points,
+    clear_points,
+    undo_last_point,
+    get_match_results
+)
+from utils import (
+    setup_logging,
+    is_admin,
+    validate_input,
+    format_points,
+    get_command_cooldown,
+    check_rate_limit
+)
 
 # Set up logging
 logging.basicConfig(
@@ -155,11 +167,6 @@ TEAM_ACRONYMS = {
 @client.event
 async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
-    # Create initial backup
-    try:
-        backup_database()
-    except Exception as e:
-        logger.error(f"Failed to create initial backup: {str(e)}")
 
 @client.event
 async def on_message(message):
@@ -404,9 +411,6 @@ async def on_message(message):
             # Send the embed message
             await message.channel.send(embed=embed)
 
-    except DatabaseError as e:
-        logger.error(f"Database error: {str(e)}")
-        await message.channel.send("❌ Database error occurred. Please try again later.")
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         await message.channel.send("❌ An unexpected error occurred. Please try again later.")
