@@ -298,8 +298,11 @@ def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
 def get_user_stats(user_id: int) -> List[Tuple[int, bool]]:
     """Get user stats including points and alert status"""
     try:
+        # Format username as <@user_id> for points query
+        username = f"<@{user_id}>"
+        
         # Get points for the user using their username
-        points_response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
+        points_response = supabase.table('points').select('user_points').eq('username', username).execute()
         points = points_response.data[0]['user_points'] if points_response.data else 0
         
         # Get alert status

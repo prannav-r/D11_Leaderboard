@@ -664,37 +664,6 @@ async def on_message(message):
                 logger.error(f"Error processing mystats command: {str(e)}")
                 await message.channel.send("❌ Error fetching your stats. Please try again later.")
 
-        elif message.content.startswith("!testdm"):
-            # Check command cooldown
-            if not get_command_cooldown(message.author.id, "testdm"):
-                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
-                return
-
-            # Check if user is admin
-            if not is_admin(message.author):
-                await message.channel.send("❌ This command is restricted to admin users only.")
-                return
-
-            try:
-                # Test user ID
-                test_user_id = 839729539760259082
-                user = await client.fetch_user(test_user_id)
-                
-                if user:
-                    await user.send("🔔 Test DM from Dream11 Bot!\nThis is a test message to verify DM functionality.")
-                    await message.channel.send(f"✅ Test DM sent successfully to {user.name}!")
-                    logger.info(f"Test DM sent to user {user.name} (ID: {test_user_id})")
-                else:
-                    await message.channel.send("❌ Could not find the specified user.")
-                    logger.error(f"Could not find user with ID: {test_user_id}")
-                    
-            except discord.Forbidden:
-                await message.channel.send("❌ Bot does not have permission to send DMs to this user.")
-                logger.error(f"Bot does not have permission to send DMs to user {test_user_id}")
-            except Exception as e:
-                await message.channel.send(f"❌ Error sending test DM: {str(e)}")
-                logger.error(f"Error sending test DM to user {test_user_id}: {str(e)}")
-
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         await message.channel.send("❌ An unexpected error occurred. Please try again later.")
