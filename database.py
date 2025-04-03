@@ -66,16 +66,16 @@ def init_db() -> None:
 def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
     """Get points for all users or a specific user"""
     try:
-        if user_id is not None:
-            # Get points for specific user
-            response = supabase.table('points').select('points').eq('username', str(user_id)).execute()
-            if response.data:
-                return response.data[0]['points']
-            return 0
-        else:
-            # Get points for all users
-            response = supabase.table('points').select('username,points').execute()
-            return {item['username']: item['points'] for item in response.data}
+        # Get points for specific user
+        if user_id:
+            response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
+            if not response.data:
+                return 0
+            return response.data[0]['user_points']
+        
+        # Get points for all users
+        response = supabase.table('points').select('username,user_points').execute()
+        return {item['username']: item['user_points'] for item in response.data}
     except Exception as e:
         logger.error(f"Error getting points: {str(e)}")
         raise DatabaseError(f"Failed to get points: {str(e)}")
@@ -84,22 +84,22 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
     """Update points for a user and record in history"""
     try:
         # Get current points
-        current_points = supabase.table('points').select('points').eq('username', username).execute()
+        current_points = supabase.table('points').select('user_points').eq('username', username).execute()
         
         # Update or insert points
         if not current_points.data:
             supabase.table('points').insert({
                 'username': username,
-                'points': points
+                'user_points': points
             }).execute()
         else:
-            new_points = current_points.data[0]['points'] + points
-            supabase.table('points').update({'points': new_points}).eq('username', username).execute()
+            new_points = current_points.data[0]['user_points'] + points
+            supabase.table('points').update({'user_points': new_points}).eq('username', username).execute()
         
         # Record in history
         supabase.table('history').insert({
             'username': username,
-            'points': points,
+            'user_points': points,
             'match_number': match_number,
             'updated_by': updated_by,
             'timestamp': datetime.now(timezone.utc).isoformat()
@@ -140,10 +140,10 @@ def undo_last_point() -> Tuple[bool, str]:
         entry = last_entry.data[0]
         
         # Update points
-        current_points = supabase.table('points').select('points').eq('username', entry['username']).execute()
+        current_points = supabase.table('points').select('user_points').eq('username', entry['username']).execute()
         if current_points.data:
-            new_points = current_points.data[0]['points'] - entry['points']
-            supabase.table('points').update({'points': new_points}).eq('username', entry['username']).execute()
+            new_points = current_points.data[0]['user_points'] - entry['user_points']
+            supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
         
         # Delete history entry
         supabase.table('history').delete().eq('id', entry['id']).execute()
@@ -151,7 +151,7 @@ def undo_last_point() -> Tuple[bool, str]:
         # Delete match result
         supabase.table('match_results').delete().eq('match_number', entry['match_number']).execute()
         
-        return True, f"Undid {entry['points']} point(s) for {entry['username']}"
+        return True, f"Undid {entry['user_points']} point(s) for {entry['username']}"
         
     except Exception as e:
         logger.error(f"Error undoing last point: {str(e)}")
@@ -260,8 +260,8 @@ def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
         # Get points for the user using their username
-        points_response = supabase.table('points').select('points').eq('username', str(user_id)).execute()
-        points = points_response.data[0]['points'] if points_response.data else 0
+        points_response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
+        points = points_response.data[0]['user_points'] if points_response.data else 0
         
         # Get alert status
         alert_response = supabase.table('user_alerts').select('enabled').eq('user_id', user_id).execute()
