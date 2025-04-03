@@ -259,6 +259,45 @@ def get_users_with_alerts() -> List[int]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
+        # Get match results for this user
+        response = supabase.table('match_results').select(
+            'match_number, winner, timestamp'
+        ).eq('winner', str(user_id)).order('match_number').execute()
+        
+        if not response.data:
+            return []
+            
+        # Get corresponding history entries for each match
+        results = []
+        for match in response.data:
+            try:
+                # Get the history entry for this match
+                history_response = supabase.table('history').select(
+                    'updated_by'
+                ).eq('match_number', match['match_number']).limit(1).execute()
+                
+                # Get the admin who recorded the win
+                admin = history_response.data[0]['updated_by'] if history_response.data else 'Unknown'
+                
+                results.append((
+                    match['match_number'],
+                    match['winner'],
+                    match['timestamp'],
+                    admin
+                ))
+            except Exception as e:
+                logger.error(f"Error processing match {match['match_number']}: {str(e)}")
+                continue
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error getting user match wins: {str(e)}")
+        raise DatabaseError(f"Failed to get user match wins: {str(e)}")
+
+def get_user_stats(user_id: int) -> List[Tuple[int, bool]]:
+    """Get user stats including points and alert status"""
+    try:
         # Get points for the user using their username
         points_response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
         points = points_response.data[0]['user_points'] if points_response.data else 0
@@ -269,5 +308,5 @@ def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
         
         return [(points, alert_enabled)]
     except Exception as e:
-        logging.error(f"Error getting user stats: {e}")
-        raise DatabaseError(f"Failed to get user stats: {e}") 
+        logger.error(f"Error getting user stats: {str(e)}")
+        raise DatabaseError(f"Failed to get user stats: {str(e)}") 

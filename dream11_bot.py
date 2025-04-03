@@ -18,7 +18,8 @@ from database import (
     get_user_alert_preference,
     set_user_alert_preference,
     get_users_with_alerts,
-    get_user_match_wins
+    get_user_match_wins,
+    get_user_stats
 )
 from utils import (
     setup_logging,
@@ -533,7 +534,12 @@ async def on_message(message):
                 inline=False
             )
             embed.add_field(
-                name="5. `!about`",
+                name="5. `!mystats`",
+                value="Show your personal stats (points and alert status)",
+                inline=False
+            )
+            embed.add_field(
+                name="6. `!about`",
                 value="Show this help message",
                 inline=False
             )
@@ -614,36 +620,31 @@ async def on_message(message):
                     "Please try again later or contact an admin if the issue persists."
                 )
 
-        elif message.content.startswith('!mystats'):
+        elif message.content.startswith("!mystats"):
             try:
-                logger.info(f"Processing !mystats command for user {message.author.id}")
+                logger.info(f"Processing mystats command for user {message.author.name}")
                 
-                # Get user's stats
-                try:
-                    # Get points using username
-                    points = get_points(message.author.name)
-                    logger.info(f"Points for user {message.author.name}: {points}")
-                    
-                    # Get alert status
-                    alert_enabled = get_user_alert_preference(message.author.id)
-                    logger.info(f"Alert status for user {message.author.id}: {alert_enabled}")
-                except Exception as e:
-                    logger.error(f"Error getting user stats: {e}")
+                # Get user stats (points and alert status)
+                stats = get_user_stats(message.author.id)
+                if not stats:
                     points = 0
                     alert_enabled = False
+                else:
+                    points, alert_enabled = stats[0]
+                    
+                logger.info(f"Stats for user {message.author.name}: Points={points}, Alerts={alert_enabled}")
                 
                 # Create embed for stats
                 embed = discord.Embed(
-                    title=f"📊 Stats for {message.author.name}",
-                    description="Your Dream11 Contest Statistics",
+                    title=f"Stats for {message.author.name}",
+                    description="Your Dream11 contest statistics",
                     color=discord.Color.blue()
                 )
                 
-                # Add alert status with emoji
-                alert_status = "✅ Enabled" if alert_enabled else "❌ Disabled"
+                # Add alert status with bell emoji
                 embed.add_field(
                     name="🔔 Match Alerts",
-                    value=alert_status,
+                    value="Enabled" if alert_enabled else "Disabled",
                     inline=True
                 )
                 
@@ -654,15 +655,45 @@ async def on_message(message):
                     inline=True
                 )
                 
-                # Add footer with command hint
+                # Add footer with hint about !alert command
                 embed.set_footer(text="Use !alert to toggle match alerts")
                 
-                # Send the stats embed
                 await message.channel.send(embed=embed)
                 
             except Exception as e:
-                logger.error(f"Error in mystats command: {e}")
-                await message.channel.send("❌ An unexpected error occurred. Please try again later.")
+                logger.error(f"Error processing mystats command: {str(e)}")
+                await message.channel.send("❌ Error fetching your stats. Please try again later.")
+
+        elif message.content.startswith("!testdm"):
+            # Check command cooldown
+            if not get_command_cooldown(message.author.id, "testdm"):
+                await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
+                return
+
+            # Check if user is admin
+            if not is_admin(message.author):
+                await message.channel.send("❌ This command is restricted to admin users only.")
+                return
+
+            try:
+                # Test user ID
+                test_user_id = 839729539760259082
+                user = await client.fetch_user(test_user_id)
+                
+                if user:
+                    await user.send("🔔 Test DM from Dream11 Bot!\nThis is a test message to verify DM functionality.")
+                    await message.channel.send(f"✅ Test DM sent successfully to {user.name}!")
+                    logger.info(f"Test DM sent to user {user.name} (ID: {test_user_id})")
+                else:
+                    await message.channel.send("❌ Could not find the specified user.")
+                    logger.error(f"Could not find user with ID: {test_user_id}")
+                    
+            except discord.Forbidden:
+                await message.channel.send("❌ Bot does not have permission to send DMs to this user.")
+                logger.error(f"Bot does not have permission to send DMs to user {test_user_id}")
+            except Exception as e:
+                await message.channel.send(f"❌ Error sending test DM: {str(e)}")
+                logger.error(f"Error sending test DM to user {test_user_id}: {str(e)}")
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
