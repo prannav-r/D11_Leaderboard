@@ -282,37 +282,32 @@ async def on_message(message):
                 # Send leaderboard first
                 await message.channel.send(leaderboard)
                 
-                # Add match results section if there are results
+                # Add recent match results section if there are results
                 if match_results:
-                    # Sort match results by match number
-                    sorted_matches = sorted(match_results, key=lambda x: x[0])
+                    # Sort match results by match number in descending order and take last 5
+                    sorted_matches = sorted(match_results, key=lambda x: x[0], reverse=True)[:5]
                     
-                    # Split matches into chunks of 10 for better readability
-                    chunk_size = 10
-                    for i in range(0, len(sorted_matches), chunk_size):
-                        chunk = sorted_matches[i:i + chunk_size]
+                    # Create header for recent matches
+                    match_log = "🏆 Recent Match Winners 🏆\n\n"
+                    match_log += "Match #     Match Details                    Winner\n"
+                    match_log += "-" * 70 + "\n"
+                    
+                    # Add matches
+                    for match_no, winner, _, _ in sorted_matches:
+                        # Get match details from schedule
+                        match_info = IPL_2025_SCHEDULE.get(match_no, {})
+                        if match_info:
+                            home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                            away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                            match_details = f"{home_team} vs {away_team}"
+                        else:
+                            match_details = "Unknown Teams"
                         
-                        # Create header for each chunk
-                        match_log = "🏆 Dream11 Contest Match Winners Log 🏆\n\n"
-                        match_log += "Match #     Match Details                    Winner\n"
-                        match_log += "-" * 70 + "\n"
-                        
-                        # Add matches for this chunk
-                        for match_no, winner, _, _ in chunk:
-                            # Get match details from schedule
-                            match_info = IPL_2025_SCHEDULE.get(match_no, {})
-                            if match_info:
-                                home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
-                                away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
-                                match_details = f"{home_team} vs {away_team}"
-                            else:
-                                match_details = "Unknown Teams"
-                            
-                            # Format the line with proper spacing
-                            match_log += f"Match {match_no:<5} {match_details:<30} {format_username(winner)}\n"
-                        
-                        # Send the chunk
-                        await message.channel.send(match_log)
+                        # Format the line with proper spacing
+                        match_log += f"Match {match_no:<5} {match_details:<30} {format_username(winner)}\n"
+                    
+                    # Send the recent matches
+                    await message.channel.send(match_log)
                 
             except Exception as e:
                 logger.error(f"Error displaying leaderboard: {str(e)}")
