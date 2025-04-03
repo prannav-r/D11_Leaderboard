@@ -183,6 +183,18 @@ async def check_match_alerts():
 async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
     logger.info(f"Bot is in {len(client.guilds)} guilds")
+    
+    # Check DM permissions
+    try:
+        # Try to send a DM to the bot owner
+        owner = await client.fetch_user(Config.ADMIN_USER_IDS[0])  # Get first admin as owner
+        await owner.send("✅ Bot has successfully started and has DM permissions!")
+        logger.info("DM permissions verified successfully")
+    except discord.Forbidden:
+        logger.error("❌ Bot does not have permission to send DMs. Please enable DMs in Discord settings.")
+    except Exception as e:
+        logger.error(f"Error checking DM permissions: {e}")
+    
     # Start the alert checking task
     client.loop.create_task(check_match_alerts())
     logger.info("Alert checking task started")
