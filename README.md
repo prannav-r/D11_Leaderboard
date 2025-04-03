@@ -52,8 +52,9 @@ A Discord bot for tracking Dream11 contest points and match results.
 ### Regular Commands
 
 - `!win <username> <match_number>` - Add 1 point to a user for winning a match
-- `!d11` - Show Dream11 leaderboard
+- `!d11` - Show Dream11 leaderboard and recent match winners
 - `!tdy` - Show today's scheduled matches
+- `!mystats` - Show your personal stats (points and alert status)
 - `!about` - Show help message
 
 ### Admin Commands

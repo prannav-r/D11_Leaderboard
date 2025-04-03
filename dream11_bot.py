@@ -119,8 +119,9 @@ async def check_match_alerts():
     """Check for upcoming matches and send alerts"""
     while True:
         try:
-            # Get current time
+            # Get current time in UTC
             current_time = datetime.now(timezone.utc)
+            logger.info(f"Checking alerts at {current_time}")
             
             # Get users with alerts enabled
             users_with_alerts = get_users_with_alerts()
@@ -130,8 +131,8 @@ async def check_match_alerts():
             
             # Check each match in the schedule
             for match_no, match_info in IPL_2025_SCHEDULE.items():
-                # Parse match start time
                 try:
+                    # Parse match start time
                     match_date = match_info['date']
                     start_time = datetime.strptime(match_info['start'], '%H:%M').time()
                     match_datetime = datetime.combine(match_date, start_time)
@@ -140,8 +141,11 @@ async def check_match_alerts():
                     # Calculate alert time (30 minutes before match)
                     alert_time = match_datetime - timedelta(minutes=30)
                     
-                    # Check if it's time to send alert
-                    if current_time >= alert_time and current_time < match_datetime:
+                    # Log match and alert times for debugging
+                    logger.info(f"Match {match_no}: Start={match_datetime}, Alert={alert_time}")
+                    
+                    # Check if it's time to send alert (within 1 minute of alert time)
+                    if abs((current_time - alert_time).total_seconds()) < 60:
                         # Get team acronyms
                         home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
                         away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
@@ -150,7 +154,8 @@ async def check_match_alerts():
                         alert_message = (
                             f"🔔 Match Alert!\n"
                             f"Match {match_no}: {home_team} vs {away_team}\n"
-                            f"Starting in 30 minutes!"
+                            f"Starting in 30 minutes!\n"
+                            f"Venue: {match_info['venue']}"
                         )
                         
                         # Send alert to each user
@@ -159,6 +164,7 @@ async def check_match_alerts():
                                 user = await client.fetch_user(user_id)
                                 if user:
                                     await user.send(alert_message)
+                                    logger.info(f"Sent alert to user {user_id} for Match {match_no}")
                             except Exception as e:
                                 logger.error(f"Error sending alert to user {user_id}: {str(e)}")
                                 
@@ -596,25 +602,26 @@ async def on_message(message):
                 # Create embed for stats
                 embed = discord.Embed(
                     title=f"📊 Stats for {message.author.name}",
+                    description="Your Dream11 Contest Statistics",
                     color=discord.Color.blue()
                 )
                 
-                # Add alert status
+                # Add alert status with emoji
                 alert_status = "✅ Enabled" if alert_enabled else "❌ Disabled"
                 embed.add_field(
-                    name="Match Alerts",
+                    name="🔔 Match Alerts",
                     value=alert_status,
                     inline=True
                 )
                 
-                # Add points
+                # Add points with trophy emoji
                 embed.add_field(
-                    name="Points",
+                    name="🏆 Points Won",
                     value=str(points),
                     inline=True
                 )
                 
-                # Add footer
+                # Add footer with command hint
                 embed.set_footer(text="Use !alert to toggle match alerts")
                 
                 # Send the stats embed
