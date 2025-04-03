@@ -99,10 +99,10 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
         # Record in history
         supabase.table('history').insert({
             'username': username,
-            'user_points': points,
+            'points': points,
             'match_number': match_number,
             'updated_by': updated_by,
-            'timestamp': datetime.now(timezone.utc).isoformat()
+            'timestamp': datetime.now().isoformat()
         }).execute()
         
         # Record match result (use upsert to handle duplicates)
