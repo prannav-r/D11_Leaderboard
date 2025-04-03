@@ -644,7 +644,7 @@ async def on_message(message):
                 # Add alert status with bell emoji
                 embed.add_field(
                     name="🔔 Match Alerts",
-                    value="Enabled" if alert_enabled else "Disabled",
+                    value="✅Enabled" if alert_enabled else "❌ Disabled",
                     inline=True
                 )
                 
