@@ -45,3 +45,6 @@ dream11.db
 # OS specific
 .DS_Store
 Thumbs.db 
+
+# Misc
+test.py
