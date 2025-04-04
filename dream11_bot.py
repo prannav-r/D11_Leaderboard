@@ -225,7 +225,7 @@ async def on_ready():
 class CommandRouter:
     def __init__(self):
         self.commands: Dict[str, Callable[[discord.Message], Awaitable[None]]] = {}
-        self.middleware: List[Callable[[discord.Message], Awaitable[bool]]] = []
+        self.middlewares: List[Callable[[discord.Message], Awaitable[bool]]] = []
         
     def command(self, name: str):
         def decorator(func: Callable[[discord.Message], Awaitable[None]]):
@@ -233,8 +233,8 @@ class CommandRouter:
             return func
         return decorator
         
-    def middleware(self, func: Callable[[discord.Message], Awaitable[bool]]):
-        self.middleware.append(func)
+    def add_middleware(self, func: Callable[[discord.Message], Awaitable[bool]]):
+        self.middlewares.append(func)
         return func
         
     async def process(self, message: discord.Message) -> None:
@@ -242,7 +242,7 @@ class CommandRouter:
             return
             
         # Run middleware
-        for middleware in self.middleware:
+        for middleware in self.middlewares:
             if not await middleware(message):
                 return
                 
@@ -267,14 +267,14 @@ class CommandRouter:
 router = CommandRouter()
 
 # Command middleware
-@router.middleware
+@router.add_middleware
 async def check_rate_limit_middleware(message: discord.Message) -> bool:
     if not check_rate_limit(message.author.id):
         await message.channel.send("⚠️ You're using commands too quickly. Please wait a moment.")
         return False
     return True
 
-@router.middleware
+@router.add_middleware
 async def check_command_cooldown_middleware(message: discord.Message) -> bool:
     global last_command_time
     current_time = time.time()
