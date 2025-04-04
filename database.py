@@ -68,7 +68,8 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
     try:
         # Get points for specific user
         if user_id:
-            response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
+            username = f"<@{user_id}>"
+            response = supabase.table('points').select('user_points').eq('username', username).execute()
             if not response.data:
                 return 0
             return response.data[0]['user_points']
@@ -83,6 +84,10 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
 def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
     """Update points for a user and record in history"""
     try:
+        # Ensure username is in correct format
+        if not username.startswith('<@') or not username.endswith('>'):
+            username = f"<@{username}>"
+        
         # Get current points
         current_points = supabase.table('points').select('user_points').eq('username', username).execute()
         
@@ -119,43 +124,39 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
 def clear_points() -> None:
     """Clear all points and history"""
     try:
-        # Clear all tables
+        # Clear points table
         supabase.table('points').delete().neq('username', '').execute()
-        supabase.table('history').delete().neq('username', '').execute()
-        supabase.table('match_results').delete().neq('match_number', 0).execute()
         
+        # Clear history table
+        supabase.table('history').delete().neq('username', '').execute()
     except Exception as e:
         logger.error(f"Error clearing points: {str(e)}")
         raise DatabaseError(f"Failed to clear points: {str(e)}")
 
-def undo_last_point() -> Tuple[bool, str]:
-    """Undo the last point change"""
+def undo_last_points_update() -> Tuple[bool, str]:
+    """Undo the last points update"""
     try:
-        # Get last history entry
-        last_entry = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
+        # Get the last history entry
+        response = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
         
-        if not last_entry.data:
+        if not response.data:
             return False, "No points to undo"
         
-        entry = last_entry.data[0]
+        entry = response.data[0]
         
         # Update points
         current_points = supabase.table('points').select('user_points').eq('username', entry['username']).execute()
         if current_points.data:
-            new_points = current_points.data[0]['user_points'] - entry['user_points']
+            new_points = current_points.data[0]['user_points'] - entry['points']
             supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
         
-        # Delete history entry
+        # Delete the history entry
         supabase.table('history').delete().eq('id', entry['id']).execute()
         
-        # Delete match result
-        supabase.table('match_results').delete().eq('match_number', entry['match_number']).execute()
-        
-        return True, f"Undid {entry['user_points']} point(s) for {entry['username']}"
-        
+        return True, f"Undid {entry['points']} point(s) for {entry['username']}"
     except Exception as e:
-        logger.error(f"Error undoing last point: {str(e)}")
-        raise DatabaseError(f"Failed to undo last point: {str(e)}")
+        logger.error(f"Error undoing points update: {str(e)}")
+        raise DatabaseError(f"Failed to undo points update: {str(e)}")
 
 def get_match_results() -> List[Tuple[int, str, str, str]]:
     """Get all match results with admin who recorded them"""
@@ -259,10 +260,13 @@ def get_users_with_alerts() -> List[int]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
+        # Format username as <@user_id> for query
+        username = f"<@{user_id}>"
+        
         # Get match results for this user
         response = supabase.table('match_results').select(
             'match_number, winner, timestamp'
-        ).eq('winner', str(user_id)).order('match_number').execute()
+        ).eq('winner', username).order('match_number').execute()
         
         if not response.data:
             return []
