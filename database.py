@@ -1,8 +1,9 @@
 from supabase import create_client, Client
 from datetime import datetime, timezone
 import logging
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Tuple, Optional, Union, Any
 from config import Config
+from utils import retry_on_error, structured_logger
 
 # Set up logging
 logging.basicConfig(
@@ -18,6 +19,57 @@ class DatabaseError(Exception):
     """Custom exception for database errors"""
     pass
 
+class TransactionError(DatabaseError):
+    """Exception for transaction-related errors"""
+    pass
+
+def execute_in_transaction(operations: List[Dict[str, Any]]) -> None:
+    """Execute a list of database operations in a transaction"""
+    try:
+        # Start transaction
+        structured_logger.info("Starting database transaction", {"operations": len(operations)})
+        
+        # Execute each operation
+        for op in operations:
+            table = op.get('table')
+            action = op.get('action')
+            data = op.get('data', {})
+            conditions = op.get('conditions', {})
+            
+            try:
+                if action == 'insert':
+                    supabase.table(table).insert(data).execute()
+                elif action == 'update':
+                    query = supabase.table(table).update(data)
+                    for key, value in conditions.items():
+                        query = query.eq(key, value)
+                    query.execute()
+                elif action == 'delete':
+                    query = supabase.table(table).delete()
+                    for key, value in conditions.items():
+                        query = query.eq(key, value)
+                    query.execute()
+                else:
+                    raise ValueError(f"Invalid action: {action}")
+                    
+            except Exception as e:
+                structured_logger.error(
+                    "Error executing database operation",
+                    {
+                        "table": table,
+                        "action": action,
+                        "error": str(e)
+                    }
+                )
+                raise TransactionError(f"Failed to execute {action} on {table}: {str(e)}")
+                
+        structured_logger.info("Transaction completed successfully")
+        
+    except Exception as e:
+        structured_logger.error("Transaction failed", {"error": str(e)})
+        raise TransactionError(f"Transaction failed: {str(e)}")
+
+@retry_on_error(max_retries=3, delay=1)
 def init_db() -> None:
     """Initialize database tables and indexes"""
     try:
@@ -27,40 +79,49 @@ def init_db() -> None:
             try:
                 # Try to select from the table to verify it exists
                 response = supabase.table(table).select('count').execute()
-                logger.info(f"Successfully connected to {table} table")
+                structured_logger.info(f"Successfully connected to {table} table")
                 
                 # For user_alerts table, verify structure
                 if table == 'user_alerts':
                     # Try to insert a test record
                     test_user_id = 123456789  # Test user ID
                     try:
-                        supabase.table('user_alerts').insert({
-                            'user_id': test_user_id,
-                            'enabled': False
-                        }).execute()
-                        logger.info("Successfully tested user_alerts table insert")
+                        operations = [
+                            {
+                                'table': 'user_alerts',
+                                'action': 'insert',
+                                'data': {
+                                    'user_id': test_user_id,
+                                    'enabled': False
+                                }
+                            },
+                            {
+                                'table': 'user_alerts',
+                                'action': 'update',
+                                'data': {'enabled': True},
+                                'conditions': {'user_id': test_user_id}
+                            },
+                            {
+                                'table': 'user_alerts',
+                                'action': 'delete',
+                                'conditions': {'user_id': test_user_id}
+                            }
+                        ]
+                        execute_in_transaction(operations)
+                        structured_logger.info("Successfully tested user_alerts table operations")
                         
-                        # Try to update the test record
-                        supabase.table('user_alerts').update({
-                            'enabled': True
-                        }).eq('user_id', test_user_id).execute()
-                        logger.info("Successfully tested user_alerts table update")
-                        
-                        # Clean up test record
-                        supabase.table('user_alerts').delete().eq('user_id', test_user_id).execute()
-                        logger.info("Successfully cleaned up test record")
                     except Exception as e:
-                        logger.error(f"Error testing user_alerts table: {str(e)}")
+                        structured_logger.error("Error testing user_alerts table", {"error": str(e)})
                         raise DatabaseError(f"Failed to test user_alerts table: {str(e)}")
                         
             except Exception as e:
-                logger.error(f"Error accessing {table} table: {str(e)}")
+                structured_logger.error(f"Error accessing {table} table", {"error": str(e)})
                 raise DatabaseError(f"Failed to access {table} table: {str(e)}")
         
-        logger.info("Database initialized successfully")
+        structured_logger.info("Database initialized successfully")
         
     except Exception as e:
-        logger.error(f"Error initializing database: {str(e)}")
+        structured_logger.error("Error initializing database", {"error": str(e)})
         raise DatabaseError(f"Failed to initialize database: {str(e)}")
 
 def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
@@ -81,6 +142,7 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
         logger.error(f"Error getting points: {str(e)}")
         raise DatabaseError(f"Failed to get points: {str(e)}")
 
+@retry_on_error(max_retries=3, delay=1)
 def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
     """Update points for a user and record in history"""
     try:
@@ -91,48 +153,105 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
         # Get current points
         current_points = supabase.table('points').select('user_points').eq('username', username).execute()
         
+        # Prepare transaction operations
+        operations = []
+        
         # Update or insert points
         if not current_points.data:
-            supabase.table('points').insert({
-                'username': username,
-                'user_points': points
-            }).execute()
+            operations.append({
+                'table': 'points',
+                'action': 'insert',
+                'data': {
+                    'username': username,
+                    'user_points': points
+                }
+            })
         else:
             new_points = current_points.data[0]['user_points'] + points
-            supabase.table('points').update({'user_points': new_points}).eq('username', username).execute()
+            operations.append({
+                'table': 'points',
+                'action': 'update',
+                'data': {'user_points': new_points},
+                'conditions': {'username': username}
+            })
         
         # Record in history
-        supabase.table('history').insert({
-            'username': username,
-            'points': points,
-            'match_number': match_number,
-            'updated_by': updated_by,
-            'timestamp': datetime.now().isoformat()
-        }).execute()
+        operations.append({
+            'table': 'history',
+            'action': 'insert',
+            'data': {
+                'username': username,
+                'points': points,
+                'match_number': match_number,
+                'updated_by': updated_by,
+                'timestamp': datetime.now().isoformat()
+            }
+        })
         
-        # Record match result (use upsert to handle duplicates)
-        supabase.table('match_results').upsert({
-            'match_number': match_number,
-            'winner': username,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }).execute()
+        # Record match result
+        operations.append({
+            'table': 'match_results',
+            'action': 'upsert',
+            'data': {
+                'match_number': match_number,
+                'winner': username,
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }
+        })
+        
+        # Execute all operations in a transaction
+        execute_in_transaction(operations)
+        
+        structured_logger.info(
+            "Points updated successfully",
+            {
+                "username": username,
+                "points": points,
+                "match_number": match_number,
+                "updated_by": updated_by
+            }
+        )
         
     except Exception as e:
-        logger.error(f"Error updating points: {str(e)}")
+        structured_logger.error(
+            "Error updating points",
+            {
+                "username": username,
+                "points": points,
+                "match_number": match_number,
+                "error": str(e)
+            }
+        )
         raise DatabaseError(f"Failed to update points: {str(e)}")
 
+@retry_on_error(max_retries=3, delay=1)
 def clear_points() -> None:
     """Clear all points and history"""
     try:
-        # Clear points table
-        supabase.table('points').delete().neq('username', '').execute()
+        # Prepare transaction operations
+        operations = [
+            {
+                'table': 'points',
+                'action': 'delete',
+                'conditions': {'username': {'neq': ''}}
+            },
+            {
+                'table': 'history',
+                'action': 'delete',
+                'conditions': {'username': {'neq': ''}}
+            }
+        ]
         
-        # Clear history table
-        supabase.table('history').delete().neq('username', '').execute()
+        # Execute all operations in a transaction
+        execute_in_transaction(operations)
+        
+        structured_logger.info("Successfully cleared all points and history")
+        
     except Exception as e:
-        logger.error(f"Error clearing points: {str(e)}")
+        structured_logger.error("Error clearing points", {"error": str(e)})
         raise DatabaseError(f"Failed to clear points: {str(e)}")
 
+@retry_on_error(max_retries=3, delay=1)
 def undo_last_points_update() -> Tuple[bool, str]:
     """Undo the last points update"""
     try:
@@ -144,18 +263,42 @@ def undo_last_points_update() -> Tuple[bool, str]:
         
         entry = response.data[0]
         
+        # Prepare transaction operations
+        operations = []
+        
         # Update points
         current_points = supabase.table('points').select('user_points').eq('username', entry['username']).execute()
         if current_points.data:
             new_points = current_points.data[0]['user_points'] - entry['points']
-            supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
+            operations.append({
+                'table': 'points',
+                'action': 'update',
+                'data': {'user_points': new_points},
+                'conditions': {'username': entry['username']}
+            })
         
         # Delete the history entry
-        supabase.table('history').delete().eq('id', entry['id']).execute()
+        operations.append({
+            'table': 'history',
+            'action': 'delete',
+            'conditions': {'id': entry['id']}
+        })
+        
+        # Execute all operations in a transaction
+        execute_in_transaction(operations)
+        
+        structured_logger.info(
+            "Successfully undid points update",
+            {
+                "username": entry['username'],
+                "points": entry['points']
+            }
+        )
         
         return True, f"Undid {entry['points']} point(s) for {entry['username']}"
+        
     except Exception as e:
-        logger.error(f"Error undoing points update: {str(e)}")
+        structured_logger.error("Error undoing points update", {"error": str(e)})
         raise DatabaseError(f"Failed to undo points update: {str(e)}")
 
 def get_match_results() -> List[Tuple[int, str, str, str]]:

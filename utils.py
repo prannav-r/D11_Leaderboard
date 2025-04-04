@@ -1,10 +1,13 @@
 import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from config import Config
 import re
 import os
+import json
+import traceback
+import asyncio
 
 # Set up logging
 logging.basicConfig(
@@ -16,6 +19,34 @@ logger = logging.getLogger(__name__)
 # Rate limiting
 command_counts = defaultdict(lambda: {"count": 0, "reset_time": datetime.now()})
 command_cooldowns = {}
+
+class StructuredLogger:
+    """Enhanced logger with structured data support"""
+    def __init__(self, logger):
+        self.logger = logger
+        
+    def _format_context(self, context: Optional[Dict[str, Any]] = None) -> str:
+        if not context:
+            return ""
+        return f" | Context: {json.dumps(context)}"
+        
+    def info(self, message: str, context: Optional[Dict[str, Any]] = None):
+        self.logger.info(f"{message}{self._format_context(context)}")
+        
+    def error(self, message: str, context: Optional[Dict[str, Any]] = None, exc_info: bool = True):
+        if exc_info:
+            context = context or {}
+            context['traceback'] = traceback.format_exc()
+        self.logger.error(f"{message}{self._format_context(context)}")
+        
+    def warning(self, message: str, context: Optional[Dict[str, Any]] = None):
+        self.logger.warning(f"{message}{self._format_context(context)}")
+        
+    def debug(self, message: str, context: Optional[Dict[str, Any]] = None):
+        self.logger.debug(f"{message}{self._format_context(context)}")
+
+# Initialize structured logger
+structured_logger = StructuredLogger(logger)
 
 def setup_logging():
     """Set up logging configuration"""
@@ -34,7 +65,7 @@ def setup_logging():
     # Add the handler
     logger.addHandler(console_handler)
     
-    return logger
+    return structured_logger
 
 def is_admin(user) -> bool:
     """Check if the user is an admin"""
@@ -111,4 +142,22 @@ def check_rate_limit(user_id: int) -> bool:
         return False
     
     user_data["count"] += 1
-    return True 
+    return True
+
+def retry_on_error(max_retries: int = 3, delay: int = 1):
+    """Decorator for retrying functions on error"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(delay * (attempt + 1))
+                    else:
+                        raise last_exception
+            return None
+        return wrapper
+    return decorator 
