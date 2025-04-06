@@ -50,6 +50,7 @@ logger.info("Discord client initialized with required intents")
 
 # Initialize database
 try:
+    # Run init_db synchronously since it's not an async function
     init_db()
     logger.info("Database initialized successfully")
 except Exception as e:
@@ -68,11 +69,15 @@ def load_schedule():
             reader = csv.DictReader(f)
             for row in reader:
                 match_no = int(row['Match No'])
-                # Convert time format from "7:30 PM" to "19:30"
+                # Convert time format from "3:30PM" to "15:30"
                 time_str = row['Start']
                 try:
-                    # Parse the time with AM/PM format
-                    time_obj = datetime.strptime(time_str, '%I:%M %p')
+                    # First try parsing with AM/PM format
+                    try:
+                        time_obj = datetime.strptime(time_str, '%I:%M%p')
+                    except ValueError:
+                        # If that fails, try with space between time and AM/PM
+                        time_obj = datetime.strptime(time_str, '%I:%M %p')
                     # Convert to 24-hour format
                     time_24h = time_obj.strftime('%H:%M')
                 except ValueError as e:
