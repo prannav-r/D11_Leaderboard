@@ -129,8 +129,7 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
     try:
         # Get points for specific user
         if user_id:
-            username = f"<@{user_id}>"
-            response = supabase.table('points').select('user_points').eq('username', username).execute()
+            response = supabase.table('points').select('user_points').eq('username', str(user_id)).execute()
             if not response.data:
                 return 0
             return response.data[0]['user_points']
@@ -146,10 +145,6 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
 def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
     """Update points for a user and record in history"""
     try:
-        # Ensure username is in correct format
-        if not username.startswith('<@') or not username.endswith('>'):
-            username = f"<@{username}>"
-        
         # Get current points
         current_points = supabase.table('points').select('user_points').eq('username', username).execute()
         
@@ -228,77 +223,38 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
 def clear_points() -> None:
     """Clear all points and history"""
     try:
-        # Prepare transaction operations
-        operations = [
-            {
-                'table': 'points',
-                'action': 'delete',
-                'conditions': {'username': {'neq': ''}}
-            },
-            {
-                'table': 'history',
-                'action': 'delete',
-                'conditions': {'username': {'neq': ''}}
-            }
-        ]
+        # Clear points table
+        supabase.table('points').delete().neq('username', '').execute()
         
-        # Execute all operations in a transaction
-        execute_in_transaction(operations)
-        
-        structured_logger.info("Successfully cleared all points and history")
-        
+        # Clear history table
+        supabase.table('history').delete().neq('username', '').execute()
     except Exception as e:
         structured_logger.error("Error clearing points", {"error": str(e)})
         raise DatabaseError(f"Failed to clear points: {str(e)}")
 
-@retry_on_error(max_retries=3, delay=1)
 def undo_last_points_update() -> Tuple[bool, str]:
     """Undo the last points update"""
     try:
-        # Get the last history entry
-        response = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
+        # Get last history entry
+        last_entry = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
         
-        if not response.data:
+        if not last_entry.data:
             return False, "No points to undo"
         
         entry = response.data[0]
-        
-        # Prepare transaction operations
-        operations = []
         
         # Update points
         current_points = supabase.table('points').select('user_points').eq('username', entry['username']).execute()
         if current_points.data:
             new_points = current_points.data[0]['user_points'] - entry['points']
-            operations.append({
-                'table': 'points',
-                'action': 'update',
-                'data': {'user_points': new_points},
-                'conditions': {'username': entry['username']}
-            })
+            supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
         
         # Delete the history entry
-        operations.append({
-            'table': 'history',
-            'action': 'delete',
-            'conditions': {'id': entry['id']}
-        })
-        
-        # Execute all operations in a transaction
-        execute_in_transaction(operations)
-        
-        structured_logger.info(
-            "Successfully undid points update",
-            {
-                "username": entry['username'],
-                "points": entry['points']
-            }
-        )
+        supabase.table('history').delete().eq('id', entry['id']).execute()
         
         return True, f"Undid {entry['points']} point(s) for {entry['username']}"
-        
     except Exception as e:
-        structured_logger.error("Error undoing points update", {"error": str(e)})
+        logger.error(f"Error undoing points update: {str(e)}")
         raise DatabaseError(f"Failed to undo points update: {str(e)}")
 
 def get_match_results() -> List[Tuple[int, str, str, str]]:
@@ -403,13 +359,10 @@ def get_users_with_alerts() -> List[int]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
-        # Format username as <@user_id> for query
-        username = f"<@{user_id}>"
-        
         # Get match results for this user
         response = supabase.table('match_results').select(
             'match_number, winner, timestamp'
-        ).eq('winner', username).order('match_number').execute()
+        ).eq('winner', str(user_id)).order('match_number').execute()
         
         if not response.data:
             return []
