@@ -316,7 +316,7 @@ def get_user_stats(user_id: int) -> List[Tuple[int, bool]]:
     try:
         # Get points
         response = supabase.table('points').select('user_points').eq('username', f'<@{user_id}>').execute()
-        points = response.data[0]['points'] if response.data else 0
+        points = response.data[0]['user_points'] if response.data else 0
         
         return [(points,)]
         
