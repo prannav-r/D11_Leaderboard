@@ -114,6 +114,90 @@ TEAM_ACRONYMS = {
     "Punjab Kings": "PBKS"
 }
 
+# Add alert checking task
+# Test comment
+async def check_match_alerts():
+    """Check for upcoming matches and send alerts at 3 PM and 7 PM"""
+    while True:
+        try:
+            # Get current time in UTC
+            current_time = datetime.now(timezone.utc)
+            current_hour = current_time.hour
+            
+            # Only check at 3 PM and 7 PM
+            if current_hour not in [15, 19]:  # 15 = 3 PM, 19 = 7 PM
+                # Sleep until next check time
+                if current_hour < 15:
+                    sleep_until = current_time.replace(hour=15, minute=0, second=0, microsecond=0)
+                elif current_hour < 19:
+                    sleep_until = current_time.replace(hour=19, minute=0, second=0, microsecond=0)
+                else:
+                    # If past 7 PM, sleep until 3 PM next day
+                    sleep_until = (current_time + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+                
+                sleep_seconds = (sleep_until - current_time).total_seconds()
+                logger.info(f"Sleeping until {sleep_until} ({sleep_seconds} seconds)")
+                await asyncio.sleep(sleep_seconds)
+                continue
+            
+            logger.info(f"Checking alerts at {current_time}")
+            
+            # Get users with alerts enabled
+            users_with_alerts = get_users_with_alerts()
+            if not users_with_alerts:
+                await asyncio.sleep(3600)  # Sleep for 1 hour if no alerts
+                continue
+            
+            # Check each match in the schedule
+            for match_no, match_info in IPL_2025_SCHEDULE.items():
+                try:
+                    # Check if alert is enabled for this match
+                    if not match_info.get('alert', False):
+                        continue
+                        
+                    # Parse match start time
+                    match_date = match_info['date']
+                    start_time = datetime.strptime(match_info['start'], '%H:%M').time()
+                    match_datetime = datetime.combine(match_date, start_time)
+                    match_datetime = match_datetime.replace(tzinfo=timezone.utc)
+                    
+                    # Only send alerts for matches today
+                    if match_date.date() != current_time.date():
+                        continue
+                    
+                    # Get team acronyms
+                    home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                    away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                    
+                    # Create alert message
+                    alert_message = (
+                        f"🔔 Match Alert!\n"
+                        f"Match {match_no}: {home_team} vs {away_team}\n"
+                        f"Starting at {match_info['start']}!\n"
+                        f"Venue: {match_info['venue']}"
+                    )
+                    
+                    # Send alert to each user
+                    for user_id in users_with_alerts:
+                        try:
+                            user = await client.fetch_user(user_id)
+                            if user:
+                                await user.send(alert_message)
+                                logger.info(f"Sent alert to user {user_id} for Match {match_no}")
+                        except Exception as e:
+                            logger.error(f"Error sending alert to user {user_id}: {str(e)}")
+                            
+                except Exception as e:
+                    logger.error(f"Error processing match {match_no}: {str(e)}")
+                    continue
+            
+            # Sleep for 1 hour before next check
+            await asyncio.sleep(3600)
+            
+        except Exception as e:
+            logger.error(f"Error in alert checking task: {str(e)}")
+            await asyncio.sleep(60)  # Wait a minute before retrying
+
 @client.event
 async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
