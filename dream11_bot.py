@@ -373,7 +373,7 @@ async def on_message(message):
                 await message.channel.send("❌ This command is restricted to admin users only.")
                 return
                 
-            success, message_text = undo_last_point()
+            success, message_text = undo_last_points_update()
             if success:
                 await message.channel.send(f"✅ {message_text}")
             else:
@@ -413,10 +413,10 @@ async def on_message(message):
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
                     
                     # Split matches into chunks of 10 for better readability
+                    output = "📊 Detailed Match Results Log:\n\n"
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
-                        output = "📊 Detailed Match Results Log:\n\n"
                         
                         # Add matches for this chunk
                         for match_no, winner, timestamp, admin in chunk:
