@@ -13,7 +13,7 @@ from database import (
     get_points,
     update_points,
     clear_points,
-    undo_last_point,
+    undo_last_points_update,
     get_match_results,
     get_user_alert_preference,
     set_user_alert_preference,
