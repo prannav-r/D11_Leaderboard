@@ -117,6 +117,7 @@ TEAM_ACRONYMS = {
 }
 
 # Add alert checking task
+# Test comment
 async def check_match_alerts():
     """Check for upcoming matches and send alerts at 3 PM and 7 PM"""
     while True:
