@@ -413,10 +413,14 @@ async def on_message(message):
                     sorted_matches = sorted(match_results, key=lambda x: x[0])
                     
                     # Split matches into chunks of 10 for better readability
-                    output = "📊 Detailed Match Results Log:\n\n"
                     chunk_size = 10
                     for i in range(0, len(sorted_matches), chunk_size):
                         chunk = sorted_matches[i:i + chunk_size]
+                        
+                        # Create header for this chunk
+                        output = "📊 Detailed Match Results Log:\n\n"
+                        if i > 0:
+                            output = f"📊 Detailed Match Results Log (Continued):\n\n"
                         
                         # Add matches for this chunk
                         for match_no, winner, timestamp, admin in chunk:
@@ -435,7 +439,6 @@ async def on_message(message):
                             output += f"Recorded by: {admin}\n"
                             output += f"Timestamp: {timestamp}\n"
                             output += "-" * 30 + "\n"
-                        
                         
                         # Send the chunk
                         await message.channel.send(output)
