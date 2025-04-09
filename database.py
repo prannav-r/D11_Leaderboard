@@ -38,17 +38,29 @@ def execute_in_transaction(operations: List[Dict[str, Any]]) -> None:
             
             try:
                 if action == 'insert':
-                    supabase.table(table).insert(data).execute()
+                    response = supabase.table(table).insert(data).execute()
+                    if not response.data:
+                        raise TransactionError(f"Failed to insert into {table}")
+                        
                 elif action == 'update':
                     query = supabase.table(table).update(data)
                     for key, value in conditions.items():
                         query = query.eq(key, value)
-                    query.execute()
+                    response = query.execute()
+                    if not response.data:
+                        raise TransactionError(f"Failed to update {table}")
+                        
+                elif action == 'upsert':
+                    response = supabase.table(table).upsert(data).execute()
+                    if not response.data:
+                        raise TransactionError(f"Failed to upsert into {table}")
+                        
                 elif action == 'delete':
                     query = supabase.table(table).delete()
                     for key, value in conditions.items():
                         query = query.eq(key, value)
-                    query.execute()
+                    response = query.execute()
+                    
                 else:
                     raise ValueError(f"Invalid action: {action}")
                     
@@ -148,7 +160,7 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
                 'points': points,
                 'match_number': match_number,
                 'updated_by': updated_by,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
         })
         
