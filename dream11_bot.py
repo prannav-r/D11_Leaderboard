@@ -245,60 +245,34 @@ async def on_message(message):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
-            # Extract username and match number from command
-            parts = message.content[len("!win "):].strip().split()
-            if len(parts) < 2:
-                await message.channel.send("❌ Please specify both username and match number: `!win <username> <match_number>`")
-                return
-                
-            username = parts[0]
-            try:
-                match_number = int(parts[1])
-            except ValueError:
-                await message.channel.send("❌ Please provide a valid match number.")
-                return
-
-            # Validate input
-            is_valid, error_message = validate_input(username, match_number)
-            if not is_valid:
-                await message.channel.send(f"❌ {error_message}")
-                return
-            
-            # Get current date
-            current_date = datetime.now().date()
-            
             # Check if user is admin
             if not is_admin(message.author):
-                # For regular users, check if match is scheduled for today
-                match_schedule = IPL_2025_SCHEDULE.get(match_number)
-                if not match_schedule:
-                    await message.channel.send(f"❌ Match {match_number} not found in schedule.")
-                    return
-                
-                match_date = match_schedule['date'].date()
-                if match_date != current_date:
-                    # Format the match date for better readability
-                    formatted_date = match_schedule['date'].strftime('%B %d, %Y')
-                    await message.channel.send(
-                        f"❌ You can only record points for matches scheduled for today.\n"
-                        f"Match {match_number} is scheduled for {formatted_date}.\n"
-                        f"Only admins can record points for matches on other dates."
-                    )
-                    logger.info(f"User {message.author.name} attempted to record points for Match {match_number} scheduled for {formatted_date}")
-                    return
-            
-            # Update points
+                await message.channel.send("❌ This command is restricted to admin users only.")
+                return
+
+            # Parse command
+            parts = message.content.split()
+            if len(parts) != 3:
+                await message.channel.send("❌ Invalid command format. Use: !win @username match_number")
+                return
+
+            # Extract username and match number
+            username = parts[1]
             try:
-                update_points(username, 1, match_number, message.author.name)
-                success_message = f"✅ Added 1 point to {format_username(username)} for winning Match {match_number}"
-                if is_admin(message.author):
-                    success_message += " (Admin override)"
-                await message.channel.send(success_message)
-                logger.info(f"Points updated: Match {match_number} - Winner: {username} - Recorded by: {message.author.name}")
-            except Exception as e:
-                logger.error(f"Error updating points: {str(e)}")
-                await message.channel.send("❌ Error updating points. Please try again later.")
-            
+                match_number = int(parts[2])
+            except ValueError:
+                await message.channel.send("❌ Invalid match number. Please provide a valid number.")
+                return
+
+            # Validate username format
+            if not username.startswith('<@') or not username.endswith('>'):
+                await message.channel.send("❌ Invalid username format. Please mention the user using @.")
+                return
+
+            # Update points
+            await update_points(username, 1, match_number, message.author.name)
+            await message.channel.send(f"✅ Added 1 point to {username} for Match {match_number}")
+
         elif message.content.startswith("!d11"):
             # Check command cooldown
             if not get_command_cooldown(message.author.id, "d11"):

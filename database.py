@@ -23,7 +23,8 @@ class TransactionError(DatabaseError):
     """Exception for transaction-related errors"""
     pass
 
-def execute_in_transaction(operations: List[Dict[str, Any]]) -> None:
+@retry_on_error(max_retries=3, delay=1)
+async def execute_in_transaction(operations: List[Dict[str, Any]]) -> None:
     """Execute a list of database operations in a transaction"""
     try:
         # Start transaction
@@ -123,7 +124,7 @@ def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
         raise DatabaseError(f"Failed to get points: {str(e)}")
 
 @retry_on_error(max_retries=3, delay=1)
-def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
+async def update_points(username: str, points: int, match_number: int, updated_by: str) -> None:
     """Update points for a user and record in history"""
     try:
         # Get current points
@@ -176,7 +177,7 @@ def update_points(username: str, points: int, match_number: int, updated_by: str
         })
         
         # Execute all operations in a transaction
-        execute_in_transaction(operations)
+        await execute_in_transaction(operations)
         
         structured_logger.info(
             "Points updated successfully",
