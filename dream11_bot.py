@@ -627,45 +627,49 @@ async def on_message(message):
             try:
                 logger.info(f"Processing mystats command for user {message.author.name}")
                 
-                # Get user stats (points and alert status)
+                # Get user stats
                 stats = get_user_stats(message.author.id)
-                if not stats:
-                    points = 0
-                    alert_enabled = False
-                else:
-                    points, alert_enabled = stats[0]
-                    
-                logger.info(f"Stats for user {message.author.name}: Points={points}, Alerts={alert_enabled}")
+                points = stats[0][0]  # Get points
+                alert_status = stats[0][1]  # Get alert status
                 
-                # Create embed for stats
+                # Get match wins
+                wins = get_user_match_wins(message.author.id)
+                
+                # Create embed
                 embed = discord.Embed(
-                    title=f"Stats for {message.author.name}",
-                    description="Your Dream11 contest statistics",
+                    title=f"{message.author.name}'s Stats",
                     color=discord.Color.blue()
                 )
                 
-                # Add alert status with bell emoji
+                # Add points
                 embed.add_field(
-                    name="🔔 Match Alerts",
-                    value="Enabled" if alert_enabled else "Disabled",
-                    inline=True
-                )
-                
-                # Add points with trophy emoji
-                embed.add_field(
-                    name="🏆 Points Won",
+                    name="Points",
                     value=str(points),
                     inline=True
                 )
                 
-                # Add footer with hint about !alert command
-                embed.set_footer(text="Use !alert to toggle match alerts")
+                # Add alert status
+                alert_text = "✅ Enabled" if alert_status else "❌ Disabled"
+                embed.add_field(
+                    name="Match Alerts",
+                    value=alert_text,
+                    inline=True
+                )
+                
+                # Add match wins if any
+                if wins:
+                    wins_text = "\n".join([f"Match {win[0]} - {win[2]}" for win in wins])
+                    embed.add_field(
+                        name="Match Wins",
+                        value=wins_text,
+                        inline=False
+                    )
                 
                 await message.channel.send(embed=embed)
                 
             except Exception as e:
                 logger.error(f"Error processing mystats command: {str(e)}")
-                await message.channel.send("❌ Error fetching your stats. Please try again later.")
+                await message.channel.send("❌ Failed to get your stats. Please try again later.")
 
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
