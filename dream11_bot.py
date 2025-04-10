@@ -29,7 +29,9 @@ from utils import (
     get_command_cooldown,
     check_rate_limit,
     is_mention,
-    format_username
+    format_username,
+    has_used_win_today,
+    is_match_today
 )
 import time
 
@@ -245,11 +247,6 @@ async def on_message(message):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
-            # Check if user is admin
-            if not is_admin(message.author):
-                await message.channel.send("❌ This command is restricted to admin users only.")
-                return
-
             # Parse command
             parts = message.content.split()
             if len(parts) != 3:
@@ -268,6 +265,19 @@ async def on_message(message):
             if not username.startswith('<@') or not username.endswith('>'):
                 await message.channel.send("❌ Invalid username format. Please mention the user using @.")
                 return
+
+            # Check if user is admin
+            if not is_admin(message.author):
+                # For non-admin users:
+                # 1. Check if they've already used the command today
+                if has_used_win_today(message.author.id):
+                    await message.channel.send("❌ You can only use the !win command once per day.")
+                    return
+
+                # 2. Check if the match is scheduled for today
+                if not is_match_today(match_number):
+                    await message.channel.send("❌ You can only record wins for matches scheduled for today.")
+                    return
 
             # Update points
             await update_points(username, 1, match_number, message.author.name)
