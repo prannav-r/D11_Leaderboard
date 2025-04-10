@@ -87,7 +87,7 @@ def init_db() -> None:
     """Initialize database tables"""
     try:
         # List of tables to check/initialize
-        tables = ['points', 'history', 'match_results']
+        tables = ['points', 'history']
         
         # Check each table
         for table in tables:
@@ -165,17 +165,6 @@ async def update_points(username: str, points: int, match_number: int, updated_b
             }
         })
         
-        # Record match result
-        operations.append({
-            'table': 'match_results',
-            'action': 'upsert',
-            'data': {
-                'match_number': match_number,
-                'winner': username,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
-        })
-        
         # Execute all operations in a transaction
         await execute_in_transaction(operations)
         
@@ -242,42 +231,24 @@ def undo_last_points_update() -> Tuple[bool, str]:
 def get_match_results() -> List[Tuple[int, str, str, str]]:
     """Get all match results with admin who recorded them"""
     try:
-        # First check if we have any match results
-        check_response = supabase.table('match_results').select('count').execute()
-        if not check_response.data or check_response.data[0]['count'] == 0:
-            logger.info("No match results found in database")
-            return []
-
-        # Get match results
-        match_response = supabase.table('match_results').select(
-            'match_number, winner, timestamp'
+        # Get match results from history table
+        response = supabase.table('history').select(
+            'match_number, username, timestamp, updated_by'
         ).order('match_number').execute()
         
-        if not match_response.data:
+        if not response.data:
             logger.info("No match results found")
             return []
             
-        # Get corresponding history entries for each match
+        # Process results
         results = []
-        for match in match_response.data:
-            try:
-                # Get the history entry for this match
-                history_response = supabase.table('history').select(
-                    'updated_by'
-                ).eq('match_number', match['match_number']).limit(1).execute()
-                
-                # Get the admin who recorded the win
-                admin = history_response.data[0]['updated_by'] if history_response.data else 'Unknown'
-                
-                results.append((
-                    match['match_number'],
-                    match['winner'],
-                    match['timestamp'],
-                    admin
-                ))
-            except Exception as e:
-                logger.error(f"Error processing match {match['match_number']}: {str(e)}")
-                continue
+        for entry in response.data:
+            results.append((
+                entry['match_number'],
+                entry['username'],
+                entry['timestamp'],
+                entry['updated_by']
+            ))
         
         return results
         
@@ -288,35 +259,23 @@ def get_match_results() -> List[Tuple[int, str, str, str]]:
 def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
     """Get all matches won by a specific user"""
     try:
-        # Get match results for this user
-        response = supabase.table('match_results').select(
-            'match_number, winner, timestamp'
-        ).eq('winner', str(user_id)).order('match_number').execute()
+        # Get match results from history table
+        response = supabase.table('history').select(
+            'match_number, username, timestamp, updated_by'
+        ).eq('username', str(user_id)).order('match_number').execute()
         
         if not response.data:
             return []
             
-        # Get corresponding history entries for each match
+        # Process results
         results = []
-        for match in response.data:
-            try:
-                # Get the history entry for this match
-                history_response = supabase.table('history').select(
-                    'updated_by'
-                ).eq('match_number', match['match_number']).limit(1).execute()
-                
-                # Get the admin who recorded the win
-                admin = history_response.data[0]['updated_by'] if history_response.data else 'Unknown'
-                
-                results.append((
-                    match['match_number'],
-                    match['winner'],
-                    match['timestamp'],
-                    admin
-                ))
-            except Exception as e:
-                logger.error(f"Error processing match {match['match_number']}: {str(e)}")
-                continue
+        for entry in response.data:
+            results.append((
+                entry['match_number'],
+                entry['username'],
+                entry['timestamp'],
+                entry['updated_by']
+            ))
         
         return results
         
