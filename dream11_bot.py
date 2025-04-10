@@ -269,14 +269,14 @@ async def on_message(message):
             # Check if user is admin
             if not is_admin(message.author):
                 # For non-admin users:
-                # 1. Check if the match is scheduled for today
-                if not is_match_today(match_number, IPL_2025_SCHEDULE):
-                    await message.channel.send("❌ You can only record wins for matches scheduled for today.")
+                # 1. Check if they've already used the command today
+                if has_used_win_today(message.author.id):
+                    await message.channel.send("❌ You can only use the !win command once per day.")
                     return
 
-                # 2. Check if a record already exists for this match
-                if has_used_win_today(match_number):
-                    await message.channel.send("❌ A winner has already been recorded for this match.")
+                # 2. Check if the match is scheduled for today
+                if not is_match_today(match_number, IPL_2025_SCHEDULE):
+                    await message.channel.send("❌ You can only record wins for matches scheduled for today.")
                     return
 
             # Update points
@@ -615,9 +615,7 @@ async def on_message(message):
                 stats = get_user_stats(message.author.id)
                 points = stats[0][0]  # Get points
                 alert_status = stats[0][1]  # Get alert status
-                
-                # Get match wins
-                wins = get_user_match_wins(message.author.id)
+                recent_wins = stats[0][2]  # Get recent wins
                 
                 # Create embed
                 embed = discord.Embed(
@@ -627,7 +625,7 @@ async def on_message(message):
                 
                 # Add points
                 embed.add_field(
-                    name="Points",
+                    name="Total Points",
                     value=str(points),
                     inline=True
                 )
@@ -640,12 +638,34 @@ async def on_message(message):
                     inline=True
                 )
                 
-                # Add match wins if any
-                if wins:
-                    wins_text = "\n".join([f"Match {win[0]} - {win[2]}" for win in wins])
+                # Add recent match wins if any
+                if recent_wins:
+                    wins_text = ""
+                    for match_no, _, timestamp in recent_wins:
+                        # Get match details from schedule
+                        match_info = IPL_2025_SCHEDULE.get(match_no, {})
+                        if match_info:
+                            home_team = TEAM_ACRONYMS.get(match_info['home'].strip(), match_info['home'].strip())
+                            away_team = TEAM_ACRONYMS.get(match_info['away'].strip(), match_info['away'].strip())
+                            match_details = f"{home_team} vs {away_team}"
+                        else:
+                            match_details = "Unknown Teams"
+                        
+                        # Format date only
+                        win_date = datetime.fromisoformat(timestamp).strftime("%Y-%m-%d")
+                        
+                        wins_text += f"**Match {match_no}**: {match_details}\n"
+                        wins_text += f"Date: {win_date}\n\n"
+                    
                     embed.add_field(
-                        name="Match Wins",
+                        name="Recent Wins",
                         value=wins_text,
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="Recent Wins",
+                        value="No matches won yet!",
                         inline=False
                     )
                 

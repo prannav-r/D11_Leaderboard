@@ -283,8 +283,8 @@ def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
         logger.error(f"Error getting user match wins: {str(e)}")
         raise DatabaseError(f"Failed to get user match wins: {str(e)}")
 
-def get_user_stats(user_id: int) -> List[Tuple[int, bool]]:
-    """Get user stats including points and alert status"""
+def get_user_stats(user_id: int) -> List[Tuple[int, bool, List[Tuple[int, str, str]]]]:
+    """Get user stats including points, alert status, and recent match wins"""
     try:
         # Get points
         response = supabase.table('points').select('user_points').eq('username', f'<@{user_id}>').execute()
@@ -293,7 +293,20 @@ def get_user_stats(user_id: int) -> List[Tuple[int, bool]]:
         # Get alert status
         alert = get_user_alert_preference(user_id)
         
-        return [(points, alert)]
+        # Get recent match wins (last 2)
+        wins_response = supabase.table('history').select(
+            'match_number, username, timestamp'
+        ).eq('username', f'<@{user_id}>').order('timestamp', desc=True).limit(2).execute()
+        
+        recent_wins = []
+        for win in wins_response.data:
+            recent_wins.append((
+                win['match_number'],
+                win['username'],
+                win['timestamp']
+            ))
+        
+        return [(points, alert, recent_wins)]
         
     except Exception as e:
         structured_logger.error("Error getting user stats", {"error": str(e)})
