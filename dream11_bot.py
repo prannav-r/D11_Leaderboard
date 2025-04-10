@@ -626,7 +626,7 @@ async def on_message(message):
                 # Add points
                 embed.add_field(
                     name="Total Points",
-                    value=str(points),
+                    value='🥇'+str(points),
                     inline=True
                 )
                 
@@ -652,7 +652,7 @@ async def on_message(message):
                             match_details = "Unknown Teams"
                         
                         # Format date only
-                        win_date = datetime.fromisoformat(timestamp).strftime("%Y-%m-%d")
+                        win_date = match_info['date'].date()
                         
                         wins_text += f"**Match {match_no}**: {match_details}\n"
                         wins_text += f"Date: {win_date}\n\n"
