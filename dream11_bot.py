@@ -269,14 +269,14 @@ async def on_message(message):
             # Check if user is admin
             if not is_admin(message.author):
                 # For non-admin users:
-                # 1. Check if they've already used the command today
-                if has_used_win_today(message.author.id):
-                    await message.channel.send("❌ You can only use the !win command once per day.")
-                    return
-
-                # 2. Check if the match is scheduled for today
+                # 1. Check if the match is scheduled for today
                 if not is_match_today(match_number, IPL_2025_SCHEDULE):
                     await message.channel.send("❌ You can only record wins for matches scheduled for today.")
+                    return
+
+                # 2. Check if a record already exists for this match
+                if has_used_win_today(match_number):
+                    await message.channel.send("❌ A winner has already been recorded for this match.")
                     return
 
             # Update points

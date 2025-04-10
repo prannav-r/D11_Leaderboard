@@ -334,29 +334,18 @@ def get_users_with_alerts() -> List[int]:
         logger.error(f"Error getting users with alerts: {str(e)}")
         raise DatabaseError(f"Failed to get users with alerts: {str(e)}")
 
-def has_used_win_today(user_id: int) -> bool:
-    """Check if user has already used !win command today"""
+def has_used_win_today(match_number: int) -> bool:
+    """Check if a record already exists for this match in history"""
     try:
-        # Get today's date in UTC
-        today = datetime.now(timezone.utc).date()
+        # Check history for any entries with this match number
+        response = supabase.table('history').select('match_number').eq('match_number', match_number).execute()
         
-        # Check history for any wins recorded by this user today
-        response = supabase.table('history').select('timestamp').eq('username', str(user_id)).execute()
-        
-        if not response.data:
-            return False
-            
-        # Check if any of the entries are from today
-        for entry in response.data:
-            entry_date = datetime.fromisoformat(entry['timestamp']).date()
-            if entry_date == today:
-                return True
-                
-        return False
+        # If any records exist for this match number, return True
+        return len(response.data) > 0
         
     except Exception as e:
-        logger.error(f"Error checking win usage: {str(e)}")
-        raise DatabaseError(f"Failed to check win usage: {str(e)}")
+        logger.error(f"Error checking match history: {str(e)}")
+        raise DatabaseError(f"Failed to check match history: {str(e)}")
 
 def is_match_today(match_number: int, schedule: dict) -> bool:
     """Check if a match is scheduled for today"""
