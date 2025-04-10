@@ -19,7 +19,9 @@ from database import (
     set_user_alert_preference,
     get_users_with_alerts,
     get_user_match_wins,
-    get_user_stats
+    get_user_stats,
+    has_used_win_today,
+    is_match_today
 )
 from utils import (
     setup_logging,
@@ -29,9 +31,7 @@ from utils import (
     get_command_cooldown,
     check_rate_limit,
     is_mention,
-    format_username,
-    has_used_win_today,
-    is_match_today
+    format_username
 )
 import time
 
