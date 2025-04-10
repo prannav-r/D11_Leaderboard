@@ -275,7 +275,7 @@ async def on_message(message):
                     return
 
                 # 2. Check if the match is scheduled for today
-                if not is_match_today(match_number):
+                if not is_match_today(match_number, IPL_2025_SCHEDULE):
                     await message.channel.send("❌ You can only record wins for matches scheduled for today.")
                     return
 

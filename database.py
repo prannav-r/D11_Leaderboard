@@ -358,14 +358,14 @@ def has_used_win_today(user_id: int) -> bool:
         logger.error(f"Error checking win usage: {str(e)}")
         raise DatabaseError(f"Failed to check win usage: {str(e)}")
 
-def is_match_today(match_number: int) -> bool:
+def is_match_today(match_number: int, schedule: dict) -> bool:
     """Check if a match is scheduled for today"""
     try:
         # Get today's date
         today = datetime.now().date()
         
         # Check if match is in today's schedule
-        for match_no, match_info in IPL_2025_SCHEDULE.items():
+        for match_no, match_info in schedule.items():
             if match_no == match_number and match_info['date'].date() == today:
                 return True
                 
