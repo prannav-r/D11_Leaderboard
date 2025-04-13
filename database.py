@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Dict, List, Tuple, Optional, Union, Any
 from config import Config
-from utils import retry_on_error, structured_logger
+from utils import retry_on_error, structured_logger, get_ist_time
 
 # Set up logging
 logging.basicConfig(
