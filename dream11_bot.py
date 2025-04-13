@@ -210,27 +210,20 @@ async def check_match_alerts():
 
 @client.event
 async def on_ready():
-    logger.info(f"Dream11 Bot has logged in as {client.user}")
-    logger.info(f"Bot is in {len(client.guilds)} guilds")
-    
+    """Handle bot startup"""
     try:
-        # Initialize database
-        await init_db()
+        logger.info(f"Bot logged in as {client.user}")
+        
+        # Initialize database (synchronous)
+        init_db()
         logger.info("Database initialized successfully")
         
-        # Start the alert checking task
+        # Start alert checking task
         asyncio.create_task(check_match_alerts())
         logger.info("Alert checking task started")
         
-        # Send startup message to admin
-        try:
-            owner = await client.fetch_user(Config.ADMIN_USER_IDS[0])
-            await owner.send("✅ Bot has successfully started!")
-        except Exception as e:
-            logger.error(f"Error sending startup message: {e}")
-            
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
+        logger.error(f"Error during startup: {str(e)}")
         raise
 
 async def handle_win_command(message, match_number: int, username: str) -> None:
