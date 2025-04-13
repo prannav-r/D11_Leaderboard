@@ -132,25 +132,38 @@ async def check_match_alerts():
             
             # Only check at 3 PM and 7 PM IST
             if current_hour not in [15, 19]:  # 15 = 3 PM, 19 = 7 PM IST
-                # Sleep until next check time
+                # Calculate sleep time in smaller chunks
                 if current_hour < 15:
-                    sleep_until = current_time.replace(hour=15, minute=0, second=0, microsecond=0)
+                    next_check = current_time.replace(hour=15, minute=0, second=0, microsecond=0)
                 elif current_hour < 19:
-                    sleep_until = current_time.replace(hour=19, minute=0, second=0, microsecond=0)
+                    next_check = current_time.replace(hour=19, minute=0, second=0, microsecond=0)
                 else:
                     # If past 7 PM, sleep until 3 PM next day
-                    sleep_until = (current_time + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+                    next_check = (current_time + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
                 
-                sleep_seconds = (sleep_until - current_time).total_seconds()
-                logger.info(f"Sleeping until {sleep_until} ({sleep_seconds} seconds)")
-                await asyncio.sleep(sleep_seconds)
+                sleep_seconds = (next_check - current_time).total_seconds()
+                
+                # Sleep in smaller chunks to keep the bot responsive
+                while sleep_seconds > 0:
+                    # Sleep for at most 5 minutes at a time
+                    chunk = min(sleep_seconds, 300)
+                    logger.info(f"Sleeping for {chunk} seconds until next check at {next_check}")
+                    await asyncio.sleep(chunk)
+                    sleep_seconds -= chunk
+                    
+                    # Update current time after each sleep
+                    current_time = get_ist_time()
+                    if current_time.hour in [15, 19]:
+                        break
+                
                 continue
             
             logger.info(f"Checking alerts at {current_time}")
             
             # Get users with alerts enabled
-            users_with_alerts = get_users_with_alerts()
+            users_with_alerts = await get_users_with_alerts()
             if not users_with_alerts:
+                logger.info("No users with alerts enabled")
                 await asyncio.sleep(3600)  # Sleep for 1 hour if no alerts
                 continue
             
