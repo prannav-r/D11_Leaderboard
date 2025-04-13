@@ -53,14 +53,6 @@ intents.dm_reactions = True
 client = discord.Client(intents=intents)
 logger.info("Discord client initialized with required intents")
 
-# Initialize database
-try:
-    init_db()
-    logger.info("Database initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize database: {e}")
-    raise
-
 # Initialize command cooldown tracking
 last_command_time = 0
 logger.info("Command cooldown tracking initialized")
@@ -221,22 +213,25 @@ async def on_ready():
     logger.info(f"Dream11 Bot has logged in as {client.user}")
     logger.info(f"Bot is in {len(client.guilds)} guilds")
     
-    # Check DM permissions
-    # try:
-    #     i=0;
-    #     for i in range (0,3):# Try to send a DM to the bot owner
-    #         owner = await client.fetch_user(Config.ADMIN_USER_IDS[0])  # Get first admin as owner
-    #         await owner.send("✅ Bot has successfully started and has DM permissions!")
-    #         logger.info("DM permissions verified successfully")
-    #         i=i+1
-    # except discord.Forbidden:
-    #     logger.error("❌ Bot does not have permission to send DMs. Please enable DMs in Discord settings.")
-    # except Exception as e:
-    #     logger.error(f"Error checking DM permissions: {e}")
-    
-    # Start the alert checking task
-    client.loop.create_task(check_match_alerts())
-    logger.info("Alert checking task started")
+    try:
+        # Initialize database
+        await init_db()
+        logger.info("Database initialized successfully")
+        
+        # Start the alert checking task
+        asyncio.create_task(check_match_alerts())
+        logger.info("Alert checking task started")
+        
+        # Send startup message to admin
+        try:
+            owner = await client.fetch_user(Config.ADMIN_USER_IDS[0])
+            await owner.send("✅ Bot has successfully started!")
+        except Exception as e:
+            logger.error(f"Error sending startup message: {e}")
+            
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
 
 async def handle_win_command(message, match_number: int, username: str) -> None:
     """Handle the !win command"""
