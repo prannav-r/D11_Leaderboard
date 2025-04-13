@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from typing import Dict, Any, Optional
 from config import Config
@@ -8,6 +8,7 @@ import os
 import json
 import traceback
 import asyncio
+import pytz
 
 # Set up logging
 logging.basicConfig(
@@ -160,4 +161,15 @@ def retry_on_error(max_retries: int = 3, delay: int = 1):
                         raise last_exception
             return None
         return wrapper
-    return decorator 
+    return decorator
+
+def get_ist_time() -> datetime:
+    """Get current time in IST"""
+    utc_time = datetime.now(timezone.utc)
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+    return utc_time.astimezone(ist_timezone)
+
+def convert_to_ist(utc_time: datetime) -> datetime:
+    """Convert UTC datetime to IST"""
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+    return utc_time.astimezone(ist_timezone) 

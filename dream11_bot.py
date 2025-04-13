@@ -31,9 +31,12 @@ from utils import (
     get_command_cooldown,
     check_rate_limit,
     is_mention,
-    format_username
+    format_username,
+    get_ist_time,
+    convert_to_ist
 )
 import time
+import pytz
 
 # Set up logging
 logger = setup_logging()
@@ -120,15 +123,15 @@ TEAM_ACRONYMS = {
 
 # Add alert checking task
 async def check_match_alerts():
-    """Check for upcoming matches and send alerts at 3 PM and 7 PM"""
+    """Check for upcoming matches and send alerts at 3 PM and 7 PM IST"""
     while True:
         try:
-            # Get current time in UTC
-            current_time = datetime.now(timezone.utc)
+            # Get current time in IST
+            current_time = get_ist_time()
             current_hour = current_time.hour
             
-            # Only check at 3 PM and 7 PM
-            if current_hour not in [15, 19]:  # 15 = 3 PM, 19 = 7 PM
+            # Only check at 3 PM and 7 PM IST
+            if current_hour not in [15, 19]:  # 15 = 3 PM, 19 = 7 PM IST
                 # Sleep until next check time
                 if current_hour < 15:
                     sleep_until = current_time.replace(hour=15, minute=0, second=0, microsecond=0)
@@ -158,11 +161,10 @@ async def check_match_alerts():
                     if not match_info.get('alert', False):
                         continue
                         
-                    # Parse match start time
+                    # Parse match start time (already in IST)
                     match_date = match_info['date']
                     start_time = datetime.strptime(match_info['start'], '%H:%M').time()
                     match_datetime = datetime.combine(match_date, start_time)
-                    match_datetime = match_datetime.replace(tzinfo=timezone.utc)
                     
                     # Only send alerts for matches today
                     if match_date.date() != current_time.date():
@@ -176,7 +178,7 @@ async def check_match_alerts():
                     alert_message = (
                         f"🔔 Match Alert!\n"
                         f"Match {match_no}: {home_team} vs {away_team}\n"
-                        f"Starting at {match_info['start']}!\n"
+                        f"Starting at {match_info['start']} IST!\n"
                         f"Venue: {match_info['venue']}"
                     )
                     
@@ -444,8 +446,9 @@ async def on_message(message):
                 await message.channel.send(f"⏳ Please wait {Config.COMMAND_COOLDOWN} seconds before using this command again.")
                 return
 
-            # Get current date
-            current_date = datetime.now().date()
+            # Get current date in IST
+            current_time = get_ist_time()
+            current_date = current_time.date()
             
             # Find matches scheduled for today
             today_matches = []
@@ -477,7 +480,7 @@ async def on_message(message):
             today_matches.sort(key=lambda x: x['match_no'])
             
             for match in today_matches:
-                output += f"Match {match['match_no']:<5} {match['home']} vs {match['away']:<15} {match['start']}\n"
+                output += f"Match {match['match_no']:<5} {match['home']} vs {match['away']:<15} {match['start']} IST\n"
             
             await message.channel.send(output)
 
@@ -651,8 +654,8 @@ async def on_message(message):
                         else:
                             match_details = "Unknown Teams"
                         
-                        # Format date only
-                        win_date = match_info['date'].date()
+                        # Format date in IST
+                        win_date = convert_to_ist(datetime.fromisoformat(timestamp)).strftime("%Y-%m-%d")
                         
                         wins_text += f"**Match {match_no}**: {match_details}\n"
                         wins_text += f"Date: {win_date}\n\n"

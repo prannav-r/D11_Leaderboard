@@ -161,7 +161,7 @@ async def update_points(username: str, points: int, match_number: int, updated_b
                 'points': points,
                 'match_number': match_number,
                 'updated_by': updated_by,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'timestamp': get_ist_time().isoformat()
             }
         })
         
@@ -363,8 +363,8 @@ def has_used_win_today(match_number: int) -> bool:
 def is_match_today(match_number: int, schedule: dict) -> bool:
     """Check if a match is scheduled for today"""
     try:
-        # Get today's date
-        today = datetime.now().date()
+        # Get today's date in IST
+        today = get_ist_time().date()
         
         # Check if match is in today's schedule
         for match_no, match_info in schedule.items():
