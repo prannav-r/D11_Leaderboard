@@ -83,7 +83,7 @@ async def execute_in_transaction(operations: List[Dict[str, Any]]) -> None:
         raise TransactionError(f"Transaction failed: {str(e)}")
 
 @retry_on_error(max_retries=3, delay=1)
-def init_db() -> None:
+async def init_db() -> None:
     """Initialize database tables"""
     try:
         # List of tables to check/initialize
@@ -93,7 +93,7 @@ def init_db() -> None:
         for table in tables:
             try:
                 # Test table access
-                response = supabase.table(table).select('*').limit(1).execute()
+                response = await supabase.table(table).select('*').limit(1).execute()
                 structured_logger.info(f"Successfully connected to {table} table")
                 
             except Exception as e:
@@ -106,18 +106,19 @@ def init_db() -> None:
         structured_logger.error("Database initialization failed", {"error": str(e)})
         raise DatabaseError(f"Failed to initialize database: {str(e)}")
 
-def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
+@retry_on_error(max_retries=3, delay=1)
+async def get_points(user_id: Optional[int] = None) -> Union[Dict[str, int], int]:
     """Get points for all users or a specific user"""
     try:
         # Get points for specific user
         if user_id:
-            response = supabase.table('points').select('user_points').eq('username', f'<@{user_id}>').execute()
+            response = await supabase.table('points').select('user_points').eq('username', f'<@{user_id}>').execute()
             if not response.data:
                 return 0
             return response.data[0]['user_points']
         
         # Get points for all users
-        response = supabase.table('points').select('username,user_points').execute()
+        response = await supabase.table('points').select('username,user_points').execute()
         return {item['username']: item['user_points'] for item in response.data}
     except Exception as e:
         logger.error(f"Error getting points: {str(e)}")
@@ -191,23 +192,24 @@ async def update_points(username: str, points: int, match_number: int, updated_b
         raise DatabaseError(f"Failed to update points: {str(e)}")
 
 @retry_on_error(max_retries=3, delay=1)
-def clear_points() -> None:
+async def clear_points() -> None:
     """Clear all points and history"""
     try:
         # Clear points table
-        supabase.table('points').delete().neq('username', '').execute()
+        await supabase.table('points').delete().neq('username', '').execute()
         
         # Clear history table
-        supabase.table('history').delete().neq('username', '').execute()
+        await supabase.table('history').delete().neq('username', '').execute()
     except Exception as e:
         structured_logger.error("Error clearing points", {"error": str(e)})
         raise DatabaseError(f"Failed to clear points: {str(e)}")
 
-def undo_last_points_update() -> Tuple[bool, str]:
+@retry_on_error(max_retries=3, delay=1)
+async def undo_last_points_update() -> Tuple[bool, str]:
     """Undo the last points update"""
     try:
         # Get last history entry
-        last_entry = supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
+        last_entry = await supabase.table('history').select('*').order('timestamp', desc=True).limit(1).execute()
         
         if not last_entry.data:
             return False, "No points to undo"
@@ -215,24 +217,25 @@ def undo_last_points_update() -> Tuple[bool, str]:
         entry = last_entry.data[0]
         
         # Update points
-        current_points = supabase.table('points').select('user_points').eq('username', entry['username']).execute()
+        current_points = await supabase.table('points').select('user_points').eq('username', entry['username']).execute()
         if current_points.data:
             new_points = current_points.data[0]['user_points'] - entry['points']
-            supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
+            await supabase.table('points').update({'user_points': new_points}).eq('username', entry['username']).execute()
         
         # Delete the history entry
-        supabase.table('history').delete().eq('id', entry['id']).execute()
+        await supabase.table('history').delete().eq('id', entry['id']).execute()
         
         return True, f"Undid {entry['points']} point(s) for {entry['username']}"
     except Exception as e:
         logger.error(f"Error undoing points update: {str(e)}")
         raise DatabaseError(f"Failed to undo points update: {str(e)}")
 
-def get_match_results() -> List[Tuple[int, str, str, str]]:
+@retry_on_error(max_retries=3, delay=1)
+async def get_match_results() -> List[Tuple[int, str, str, str]]:
     """Get all match results with admin who recorded them"""
     try:
         # Get match results from history table
-        response = supabase.table('history').select(
+        response = await supabase.table('history').select(
             'match_number, username, timestamp, updated_by'
         ).order('match_number').execute()
         
@@ -249,22 +252,23 @@ def get_match_results() -> List[Tuple[int, str, str, str]]:
                 entry['timestamp'],
                 entry['updated_by']
             ))
-        
+            
         return results
-        
     except Exception as e:
         logger.error(f"Error getting match results: {str(e)}")
         raise DatabaseError(f"Failed to get match results: {str(e)}")
 
-def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
-    """Get all matches won by a specific user"""
+@retry_on_error(max_retries=3, delay=1)
+async def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
+    """Get match wins for a specific user"""
     try:
-        # Get match results from history table
-        response = supabase.table('history').select(
+        # Get match wins from history table
+        response = await supabase.table('history').select(
             'match_number, username, timestamp, updated_by'
-        ).eq('username', str(user_id)).order('match_number').execute()
+        ).eq('username', f'<@{user_id}>').order('match_number').execute()
         
         if not response.data:
+            logger.info(f"No match wins found for user {user_id}")
             return []
             
         # Process results
@@ -276,103 +280,105 @@ def get_user_match_wins(user_id: int) -> List[Tuple[int, str, str, str]]:
                 entry['timestamp'],
                 entry['updated_by']
             ))
-        
+            
         return results
-        
     except Exception as e:
         logger.error(f"Error getting user match wins: {str(e)}")
         raise DatabaseError(f"Failed to get user match wins: {str(e)}")
 
-def get_user_stats(user_id: int) -> List[Tuple[int, bool, List[Tuple[int, str, str]]]]:
-    """Get user stats including points, alert status, and recent match wins"""
+@retry_on_error(max_retries=3, delay=1)
+async def get_user_stats(user_id: int) -> List[Tuple[int, bool, List[Tuple[int, str, str]]]]:
+    """Get stats for a specific user"""
     try:
         # Get points
-        response = supabase.table('points').select('user_points').eq('username', f'<@{user_id}>').execute()
-        points = response.data[0]['user_points'] if response.data else 0
+        points = await get_points(user_id)
         
-        # Get alert status
-        alert = get_user_alert_preference(user_id)
+        # Get alert preference
+        alert_preference = await get_user_alert_preference(user_id)
         
-        # Get recent match wins (last 2)
-        wins_response = supabase.table('history').select(
-            'match_number, username, timestamp'
-        ).eq('username', f'<@{user_id}>').order('timestamp', desc=True).limit(2).execute()
+        # Get recent match wins
+        match_wins = await get_user_match_wins(user_id)
         
-        recent_wins = []
-        for win in wins_response.data:
-            recent_wins.append((
-                win['match_number'],
-                win['username'],
-                win['timestamp']
-            ))
-        
-        return [(points, alert, recent_wins)]
-        
+        return [(points, alert_preference, match_wins)]
     except Exception as e:
-        structured_logger.error("Error getting user stats", {"error": str(e)})
+        logger.error(f"Error getting user stats: {str(e)}")
         raise DatabaseError(f"Failed to get user stats: {str(e)}")
 
-def get_user_alert_preference(user_id: int) -> bool:
-    """Get user's alert preference"""
+@retry_on_error(max_retries=3, delay=1)
+async def get_user_alert_preference(user_id: int) -> bool:
+    """Get alert preference for a user"""
     try:
-        response = supabase.table('user_alerts').select('enabled').eq('user_id', user_id).execute()
+        response = await supabase.table('points').select('alert_enabled').eq('username', f'<@{user_id}>').execute()
         if not response.data:
             return False
-        return response.data[0]['enabled']
+        return response.data[0]['alert_enabled']
     except Exception as e:
         logger.error(f"Error getting user alert preference: {str(e)}")
         raise DatabaseError(f"Failed to get user alert preference: {str(e)}")
 
-def set_user_alert_preference(user_id: int, enabled: bool) -> bool:
-    """Set or update user's alert preference"""
+@retry_on_error(max_retries=3, delay=1)
+async def set_user_alert_preference(user_id: int, enabled: bool) -> bool:
+    """Set alert preference for a user"""
     try:
-        # Upsert alert preference
-        response = supabase.table('user_alerts').upsert({
-            'user_id': user_id,
-            'enabled': enabled,
-            'updated_at': datetime.now(timezone.utc).isoformat()
+        response = await supabase.table('points').upsert({
+            'username': f'<@{user_id}>',
+            'alert_enabled': enabled
         }).execute()
-        
-        return True
+        return bool(response.data)
     except Exception as e:
         logger.error(f"Error setting user alert preference: {str(e)}")
         raise DatabaseError(f"Failed to set user alert preference: {str(e)}")
 
-def get_users_with_alerts() -> List[int]:
-    """Get all users with alerts enabled"""
+@retry_on_error(max_retries=3, delay=1)
+async def get_users_with_alerts() -> List[int]:
+    """Get list of users with alerts enabled"""
     try:
-        response = supabase.table('user_alerts').select('user_id').eq('enabled', True).execute()
-        return [item['user_id'] for item in response.data]
+        response = await supabase.table('points').select('username').eq('alert_enabled', True).execute()
+        if not response.data:
+            return []
+        return [int(user['username'].strip('<>@')) for user in response.data]
     except Exception as e:
         logger.error(f"Error getting users with alerts: {str(e)}")
         raise DatabaseError(f"Failed to get users with alerts: {str(e)}")
 
-def has_used_win_today(match_number: int) -> bool:
-    """Check if a record already exists for this match in history"""
+@retry_on_error(max_retries=3, delay=1)
+async def has_used_win_today(match_number: int) -> bool:
+    """Check if a user has already used win for a match today"""
     try:
-        # Check history for any entries with this match number
-        response = supabase.table('history').select('match_number').eq('match_number', match_number).execute()
+        # Get current date in IST
+        current_time = get_ist_time()
+        current_date = current_time.date()
         
-        # If any records exist for this match number, return True
-        return len(response.data) > 0
-        
-    except Exception as e:
-        logger.error(f"Error checking match history: {str(e)}")
-        raise DatabaseError(f"Failed to check match history: {str(e)}")
-
-def is_match_today(match_number: int, schedule: dict) -> bool:
-    """Check if a match is scheduled for today"""
-    try:
-        # Get today's date in IST
-        today = get_ist_time().date()
-        
-        # Check if match is in today's schedule
-        for match_no, match_info in schedule.items():
-            if match_no == match_number and match_info['date'].date() == today:
+        # Check history for today's entries
+        response = await supabase.table('history').select('*').eq('match_number', match_number).execute()
+        if not response.data:
+            return False
+            
+        # Check if any entry is from today
+        for entry in response.data:
+            entry_date = datetime.fromisoformat(entry['timestamp']).date()
+            if entry_date == current_date:
                 return True
                 
         return False
+    except Exception as e:
+        logger.error(f"Error checking win usage: {str(e)}")
+        raise DatabaseError(f"Failed to check win usage: {str(e)}")
+
+@retry_on_error(max_retries=3, delay=1)
+async def is_match_today(match_number: int, schedule: dict) -> bool:
+    """Check if a match is scheduled for today"""
+    try:
+        # Get current date in IST
+        current_time = get_ist_time()
+        current_date = current_time.date()
         
+        # Check if match is in schedule and scheduled for today
+        match_info = schedule.get(match_number)
+        if not match_info:
+            return False
+            
+        return match_info['date'].date() == current_date
     except Exception as e:
         logger.error(f"Error checking match schedule: {str(e)}")
         raise DatabaseError(f"Failed to check match schedule: {str(e)}") 
