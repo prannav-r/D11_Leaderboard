@@ -61,15 +61,15 @@ Match No,Match Day,Date,Day,Start,Home,Away,Venue,Alert Time,Alert
 60,50,2025-05-18,Sun,7:30PM, Delhi Capitals, Gujarat Titans,Delhi,2025-05-10 07:00PM,true
 61,51,2025-05-19,Mon,7:30PM, Lucknow Super Giants, Sunrisers Hyderabad,Lucknow,2025-05-11 03:00PM,true
 62,51,2025-05-20,Tue,7:30PM, Chennai Super Kings, Rajasthan Royals,Delhi,2025-05-11 07:00PM,true
-63,52,2025-05-12,Mon,7:30PM, Chennai Super Kings, Rajasthan Royals,Chennai,2025-05-12 07:00PM,true
-64,53,2025-05-13,Tue,7:30PM, Royal Challengers Bengaluru, Sunrisers Hyderabad,Bengaluru,2025-05-13 07:00PM,true
-65,54,2025-05-14,Wed,7:30PM, Gujarat Titans, Lucknow Super Giants,Ahmedabad,2025-05-14 07:00PM,true
-66,55,2025-05-15,Thu,7:30PM, Mumbai Indians, Delhi Capitals,Mumbai,2025-05-15 07:00PM,true
-67,56,2025-05-16,Fri,7:30PM, Rajasthan Royals, Punjab Kings,Jaipur,2025-05-16 07:00PM,true
-68,57,2025-05-17,Sat,7:30PM, Royal Challengers Bengaluru, Kolkata Knight Riders,Bengaluru,2025-05-17 07:00PM,true
-69,58,2025-05-18,Sun,3:30PM, Gujarat Titans, Chennai Super Kings,Ahmedabad,2025-05-18 03:00PM,true
-70,58,2025-05-18,Sun,7:30PM, Lucknow Super Giants, Sunrisers Hyderabad,Lucknow,2025-05-18 07:00PM,true
-71,60,2025-05-20,Tue,7:30PM,TBD,TBD,Hyderabad,2025-05-20 07:00PM,true
-72,61,2025-05-21,Wed,7:30PM,TBD,TBD,Hyderabad,2025-05-21 07:00PM,true
-73,63,2025-05-23,Fri,7:30PM,TBD,TBD,Kolkata,2025-05-23 07:00PM,true
-74,65,2025-05-25,Sun,7:30PM,TBD,TBD,Kolkata,2025-05-25 07:00PM,true
+63,52,2025-05-21,Wed,7:30PM, Mumbai Indians, Delhi Capitals,Mumbai,2025-05-12 07:00PM,true
+64,53,2025-05-22,Thu,7:30PM, Gujarat Titans, Lucknow Super Giants,Ahmedabad,2025-05-13 07:00PM,true
+65,54,2025-05-23,Fri,7:30PM, Royal Challengers Bengaluru, Sunrisers Hyderabad,Lucknow,2025-05-14 07:00PM,true
+66,55,2025-05-24,Sat,7:30PM, Punjab Kings, Delhi Capitals,Jaipur,2025-05-15 07:00PM,true
+67,56,2025-05-25,Sun,3:30PM, Gujarat Titans, Chennai Super Kings,Ahmedabad,2025-05-16 07:00PM,true
+68,57,2025-05-25,Sun,7:30PM, Sunrisers Hyderabad, Kolkata Knight Riders,Delhi,2025-05-17 07:00PM,true
+69,58,2025-05-26,Mon,7:30PM, Punjab Kings, Mumbai Indians,Jaipur,2025-05-18 03:00PM,true
+70,58,2025-05-27,Tue,7:30PM, Lucknow Super Giants, Royal Challengers Bengaluru,Lucknow,2025-05-18 07:00PM,true
+71,60,2025-05-29,Thu,7:30PM,TBD,TBD,Chandigarh,2025-05-20 07:00PM,true
+72,61,2025-05-30,Fri,7:30PM,TBD,TBD,Chandigarh,2025-05-21 07:00PM,true
+73,63,2025-06-01,Sun,7:30PM,TBD,TBD,Ahmedabad,2025-05-23 07:00PM,true
+74,65,2025-06-03,Tue,7:30PM,TBD,TBD,Ahmedabad,2025-05-25 07:00PM,true
